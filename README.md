@@ -25,3 +25,10 @@ The list of the required variables to run this script are:
 
 
 Follow the documentation on how to [create a bitbucket app password](https://support.atlassian.com/bitbucket-cloud/docs/create-an-app-password/). 
+
+
+## Webhook Configuration
+Use the [webhook configuration file](./resources/webhook_configuration.json) to create your Port webhook. 
+The webhook consists of two main subscriptions: repository updates and all pull request events.
+
+Follow the documentation on how to [create a bitbucket webhook](https://support.atlassian.com/bitbucket-cloud/docs/manage-webhooks/). 

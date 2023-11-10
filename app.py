@@ -117,7 +117,7 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
             "owner": repo["owner"]["display_name"],
             "workspace_name": repo["workspace"]["name"],
             "link": repo["links"]["html"]["href"],
-            "pull_requests": repo["links"]["pullrequests"]["href"],
+            "website": repo["website"],
             "size": repo["size"],
             "language": repo["language"],
             "has_issues": repo["has_issues"],
@@ -140,13 +140,15 @@ def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
             "properties": {
                 "created_on": pr["created_on"],
                 "updated_on": pr["updated_on"],
-                "comment_count": pr["comment_count"],
+                "merge_commit": pr["merge_commit"],
                 "description": pr["description"],
                 "state": pr["state"],
                 "owner": pr["author"]["display_name"],
                 "link": pr["links"]["html"]["href"],
                 "closed_by": pr["closed_by"],
                 "destination": pr["destination"]["branch"]["name"],
+                "participants": [user["user"]["display_name"] for user in pr.get("participants", [])],
+                "reviewers": [user["user"]["display_name"] for user in pr.get("reviewers", [])],
                 "source": pr["source"]["branch"]["name"]
             },
             "relations": {
