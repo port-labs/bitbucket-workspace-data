@@ -27,12 +27,12 @@
         "properties": {
           "created_on": ".body.pullrequest.created_on",
           "updated_on": ".body.pullrequest.updated_on",
-          "merge_commit": ".body.pullrequest.merge_commit",
+          "merge_commit": ".body.pullrequest.merge_commit.hash",
           "description": ".body.pullrequest.description",
           "state": ".body.pullrequest.state",
           "owner": ".body.pullrequest.author.display_name",
           "link": ".body.pullrequest.links.html.href",
-          "closed_by": ".body.pullrequest.closed_by",
+          "closed_by": ".body.pullrequest.closed_by.display_name",
           "destination": ".body.pullrequest.destination.branch.name",
           "source": ".body.pullrequest.source.branch.name",
           "participants": "[.body.pullrequest.participants[].user.display_name]",
@@ -43,4 +43,4 @@
         }
       }
     }
-  ]
+]
