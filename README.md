@@ -21,13 +21,28 @@ Create the pull request blueprint in Port [using this json file](./resources/pul
 
 ### Running the python script
 
-Run the python script provided in `app.py` file to ingest data from your Bitbucket account.
+To ingest data from your Bitbucket account to Port, run the following commands: 
+
+```
+export PORT_CLIENT_ID=<ENTER CLIENT ID>
+export PORT_CLIENT_SECRET=<ENTER CLIENT SECRET>
+export BITBUCKET_USERNAME=<ENTER BITBUCKET USERNAME>
+export BITBUCKET_APP_PASSWORD=<ENTER BITBUCKET APP PASSWORD>
+
+git clone https://github.com/port-labs/bitbucket-workspace-data.git
+
+cd bitbucket-workspace-data
+
+pip install -r ./requirements.txt
+
+python app.py
+```
 
 The list of variables required to run this script are:
 - `PORT_CLIENT_ID`
 - `PORT_CLIENT_SECRET`
-- `BITBUCKET_USERNAME`
-- `BITBUCKET_APP_PASSWORD`
+- `BITBUCKET_USERNAME` - BitBucket username to use when accessing the BitBucket resources
+- `BITBUCKET_APP_PASSWORD` - BitBucket App Password to use
 
 
 Follow the documentation on how to [create a bitbucket app password](https://support.atlassian.com/bitbucket-cloud/docs/create-an-app-password/). 
