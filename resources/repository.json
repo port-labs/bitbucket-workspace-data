@@ -5,74 +5,30 @@
   "icon": "BitBucket",
   "schema": {
     "properties": {
-      "created_on": {
-        "title": "Created On",
-        "type": "string",
-        "format": "date-time",
-        "icon": "DefaultProperty"
-      },
-      "updated_on": {
-        "title": "Updated On",
-        "type": "string",
-        "format": "date-time",
-        "icon": "DefaultProperty"
-      },
-      "fork_policy": {
-        "title": "Fork Policy",
-        "type": "string",
-        "icon": "DefaultProperty"
+      "forkable": {
+        "icon": "DefaultProperty",
+        "title": "Is Forkable",
+        "type": "boolean"
       },
       "description": {
         "title": "Description",
         "type": "string",
         "icon": "DefaultProperty"
       },
-      "is_private": {
-        "title": "Is Private",
-        "type": "boolean",
-        "icon": "DefaultProperty"
+      "public": {
+        "icon": "DefaultProperty",
+        "title": "Is Public",
+        "type": "boolean"
       },
-      "owner": {
-        "title": "Owner",
-        "type": "string",
-        "icon": "DefaultProperty"
-      },
-      "workspace_name": {
-        "title": "Workspace Name",
-        "type": "string",
-        "icon": "DefaultProperty"
+      "state": {
+        "icon": "DefaultProperty",
+        "title": "State",
+        "type": "string"
       },
       "link": {
         "title": "Link",
-        "type": "string",
-        "format": "url",
-        "icon": "DefaultProperty"
-      },
-      "size": {
-        "title": "Size",
-        "type": "number",
-        "icon": "DefaultProperty"
-      },
-      "language": {
-        "title": "Language",
-        "type": "string",
-        "icon": "DefaultProperty"
-      },
-      "has_issues": {
-        "title": "Has Issues",
-        "type": "boolean",
-        "icon": "DefaultProperty"
-      },
-      "main_branch": {
-        "title": "Main Branch",
-        "type": "string",
-        "icon": "DefaultProperty"
-      },
-      "website": {
         "icon": "DefaultProperty",
-        "title": "Website",
-        "type": "string",
-        "format": "url"
+        "type": "string"
       }
     },
     "required": []

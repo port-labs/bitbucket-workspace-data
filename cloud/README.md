@@ -39,8 +39,8 @@ python app.py
 The list of variables required to run this script are:
 - `PORT_CLIENT_ID`
 - `PORT_CLIENT_SECRET`
-- `BITBUCKET_USERNAME`
-- `BITBUCKET_APP_PASSWORD`
+- `BITBUCKET_USERNAME` - BitBucket username to use when accessing the BitBucket resources
+- `BITBUCKET_APP_PASSWORD` - BitBucket App Password to use
 
 
 Follow the documentation on how to [create a bitbucket app password](https://support.atlassian.com/bitbucket-cloud/docs/create-an-app-password/). 

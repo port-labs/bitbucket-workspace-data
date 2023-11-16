@@ -1,49 +1,34 @@
 {
-    "identifier": "bitbucketProject",
-    "description": "A software catalog to represent Bitbucket project",
-    "title": "Bitbucket Project",
-    "icon": "BitBucket",
-    "schema": {
-      "properties": {
-        "created_on": {
-          "title": "Created On",
-          "type": "string",
-          "format": "date-time"
-        },
-        "updated_on": {
-          "title": "Updated On",
-          "type": "string",
-          "format": "date-time"
-        },
-        "has_public_repos": {
-          "title": "Has Public Repos",
-          "type": "boolean"
-        },
-        "description": {
-          "title": "Description",
-          "type": "string"
-        },
-        "is_private": {
-          "title": "Is Private",
-          "type": "boolean"
-        },
-        "owner": {
-          "title": "Owner",
-          "type": "string"
-        },
-        "workspace_name": {
-          "title": "Workspace Name",
-          "type": "string"
-        },
-        "link": {
-          "title": "Link",
-          "type": "string",
-          "format": "url"
-        }
+  "identifier": "bitbucketProject",
+  "description": "A software catalog to represent Bitbucket project",
+  "title": "Bitbucket Project",
+  "icon": "BitBucket",
+  "schema": {
+    "properties": {
+      "public": {
+        "icon": "DefaultProperty",
+        "title": "Public",
+        "type": "boolean"
       },
-      "required": []
+      "description": {
+        "title": "Description",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "type": {
+        "icon": "DefaultProperty",
+        "title": "Type",
+        "type": "string"
+      },
+      "link": {
+        "title": "Link",
+        "icon": "DefaultProperty",
+        "type": "string"
+      }
     },
-    "mirrorProperties": {},
-    "calculationProperties": {},
-    "relations": {}
-  }
+    "required": []
+  },
+  "mirrorProperties": {},
+  "calculationProperties": {},
+  "relations": {}
+}
