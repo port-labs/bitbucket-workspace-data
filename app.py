@@ -178,7 +178,6 @@ def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
 if __name__ == "__main__":
     project_path = "projects"
     for projects_batch in get_paginated_resource(path=project_path):
-        print(projects_batch)
         logger.info(f"received projects batch with size {len(projects_batch)}")
         process_project_entities(projects_data=projects_batch)
 
