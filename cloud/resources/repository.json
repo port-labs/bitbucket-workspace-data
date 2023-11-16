@@ -1,0 +1,90 @@
+{
+  "identifier": "bitbucketRepository",
+  "description": "A software catalog to represent Bitbucket repositories",
+  "title": "Bitbucket Repository",
+  "icon": "BitBucket",
+  "schema": {
+    "properties": {
+      "created_on": {
+        "title": "Created On",
+        "type": "string",
+        "format": "date-time",
+        "icon": "DefaultProperty"
+      },
+      "updated_on": {
+        "title": "Updated On",
+        "type": "string",
+        "format": "date-time",
+        "icon": "DefaultProperty"
+      },
+      "fork_policy": {
+        "title": "Fork Policy",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "description": {
+        "title": "Description",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "is_private": {
+        "title": "Is Private",
+        "type": "boolean",
+        "icon": "DefaultProperty"
+      },
+      "owner": {
+        "title": "Owner",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "workspace_name": {
+        "title": "Workspace Name",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "link": {
+        "title": "Link",
+        "type": "string",
+        "format": "url",
+        "icon": "DefaultProperty"
+      },
+      "size": {
+        "title": "Size",
+        "type": "number",
+        "icon": "DefaultProperty"
+      },
+      "language": {
+        "title": "Language",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "has_issues": {
+        "title": "Has Issues",
+        "type": "boolean",
+        "icon": "DefaultProperty"
+      },
+      "main_branch": {
+        "title": "Main Branch",
+        "type": "string",
+        "icon": "DefaultProperty"
+      },
+      "website": {
+        "icon": "DefaultProperty",
+        "title": "Website",
+        "type": "string",
+        "format": "url"
+      }
+    },
+    "required": []
+  },
+  "mirrorProperties": {},
+  "calculationProperties": {},
+  "relations": {
+    "project": {
+      "title": "Project",
+      "target": "bitbucketProject",
+      "required": false,
+      "many": false
+    }
+  }
+}

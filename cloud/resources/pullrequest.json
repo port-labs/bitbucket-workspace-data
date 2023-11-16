@@ -46,8 +46,14 @@
       },
       "link": {
         "title": "Link",
-        "icon": "DefaultProperty",
-        "type": "string"
+        "type": "string",
+        "format": "url",
+        "icon": "DefaultProperty"
+      },
+      "closed_by": {
+        "title": "Closed By",
+        "type": "string",
+        "icon": "DefaultProperty"
       },
       "destination": {
         "title": "Destination Branch",
@@ -64,21 +70,18 @@
           "type": "string"
         },
         "title": "Reviewers",
-        "type": "array",
-        "icon": "DefaultProperty"
+        "type": "array"
       },
       "participants": {
         "items": {
           "type": "string"
         },
         "title": "Participants",
-        "type": "array",
-        "icon": "DefaultProperty"
+        "type": "array"
       },
       "merge_commit": {
         "title": "Merge Commit",
-        "type": "string",
-        "icon": "DefaultProperty"
+        "type": "string"
       }
     },
     "required": []
