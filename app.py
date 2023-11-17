@@ -100,7 +100,7 @@ def process_project_entities(projects_data: list[dict[str, Any]]):
             "identifier": project["key"],
             "title": project["name"],
             "properties": {
-                "description": project["description"],
+                "description": project.get("description"),
                 "public": project["public"],
                 "type": project["type"],
                 "link": project["links"]["self"][0]["href"]
@@ -118,7 +118,7 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
         "identifier": repo["slug"],
         "title": repo["name"],
         "properties": {
-            "description": repo["description"],
+            "description": repo.get("description"),
             "state": repo["state"],
             "forkable": repo["forkable"],
             "public": repo["public"],
@@ -142,7 +142,7 @@ def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                 "created_on": convert_to_datetime(pr["createdDate"]),
                 "updated_on": convert_to_datetime(pr["updatedDate"]),
                 "merge_commit": pr["fromRef"]["latestCommit"],
-                "description": pr["description"],
+                "description": pr.get("description"),
                 "state": pr["state"],
                 "owner": pr["author"]["user"]["displayName"],
                 "link": pr["links"]["self"][0]["href"],
