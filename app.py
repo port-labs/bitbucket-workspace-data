@@ -44,7 +44,7 @@ def add_entity_to_port(blueprint_id, entity_object):
     response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
     logger.info(response.json())
 
-def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: int = 25):
+def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: int = 25, full_response: bool = False):
     logger.info(f"Requesting data for {path}")
 
     global request_count, rate_limit_start
@@ -74,8 +74,12 @@ def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: 
             response.raise_for_status()
             page_json = response.json()
             request_count += 1
-            batch_data = page_json["values"]
-            yield batch_data
+
+            if full_response:
+                yield page_json
+            else:
+                batch_data = page_json["values"]
+                yield batch_data
 
             # Check for next page start in response
             next_page_start = page_json.get("nextPageStart")
@@ -91,6 +95,17 @@ def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: 
 def convert_to_datetime(timestamp: int):
     converted_datetime = datetime.utcfromtimestamp(timestamp / 1000.0)
     return converted_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+def parse_repository_file_response(file_response: dict[str, Any]) -> str:
+    lines = file_response.get("lines", [])
+    logger.info(f"Received readme file with {len(lines)} entries")
+    readme_content = ""
+
+    for line in lines:
+        readme_content += line.get("text", "") + "\n"
+
+    return readme_content
+
 
 def process_project_entities(projects_data: list[dict[str, Any]]):
     blueprint_id = "bitbucketProject"
@@ -113,7 +128,7 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
     blueprint_id = "bitbucketRepository"
 
     for repo in repository_data:
-
+        readme_content = get_repository_readme(project_key=repo["project"]["key"], repo_slug=repo["slug"] )
         entity = {
         "identifier": repo["slug"],
         "title": repo["name"],
@@ -122,7 +137,9 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
             "state": repo["state"],
             "forkable": repo["forkable"],
             "public": repo["public"],
-            "link": repo["links"]["self"][0]["href"]
+            "link": repo["links"]["self"][0]["href"],
+            "documentation": readme_content,
+            "swagger_url": f"https://api.{repo['slug']}.com"
         },
         "relations": {
             "project": repo["project"]["key"]
@@ -157,6 +174,13 @@ def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
     
+def get_repository_readme(project_key: str, repo_slug: str) -> str:
+    file_path = f"projects/{project_key}/repos/{repo_slug}/browse/README.md"
+    readme_content = ""
+    for readme_file_batch in get_paginated_resource(path=file_path, page_size=500, full_response=True):
+        file_content = parse_repository_file_response(readme_file_batch)
+        readme_content += file_content
+    return readme_content
 
 def get_repositories(project: dict[str, Any]):
     repositories_path = f"projects/{project['key']}/repos"
