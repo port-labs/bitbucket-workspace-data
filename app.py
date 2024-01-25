@@ -89,7 +89,11 @@ def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: 
                 break
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP error with code {e.response.status_code}, content: {e.response.text}")
-            raise
+            if e.response.status_code == 404:
+                logger.info(f"Could not find the requested resources {path}. Terminating gracefully...")
+                return {}
+            else:
+                raise
     logger.info(f"Successfully fetched paginated data for {path}")
 
 def convert_to_datetime(timestamp: int):
