@@ -29,6 +29,19 @@
         "title": "Link",
         "icon": "DefaultProperty",
         "type": "string"
+      },
+      "documentation": {
+        "icon": "DefaultProperty",
+        "title": "Documentation",
+        "type": "string",
+        "format": "markdown"
+      },
+      "swagger_url": {
+        "title": "Swagger URL",
+        "type": "string",
+        "format": "url",
+        "spec": "async-api",
+        "icon": "DefaultProperty"
       }
     },
     "required": []
