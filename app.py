@@ -240,11 +240,10 @@ def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
 
 
 if __name__ == "__main__":
+    logger.info("Starting Bitbucket data extraction")
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
-        #projects = [get_single_project(project_key=project) for project in BITBUCKET_PROJECTS_FILTER]
         projects = (list(map(get_single_project, BITBUCKET_PROJECTS_FILTER)),)
-        print(f"fetched projects: {projects}")
     else:
         projects = get_paginated_resource(path=project_path)
 
@@ -254,3 +253,5 @@ if __name__ == "__main__":
 
         for project in projects_batch:
             get_repositories(project=project)
+    
+    logger.info("Bitbucket data extraction completed")
