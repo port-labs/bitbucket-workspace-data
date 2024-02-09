@@ -42,7 +42,6 @@ bitbucket_auth = HTTPBasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_P
 
 
 def add_entity_to_port(blueprint_id, entity_object):
-    #logger.info(entity_object)
     response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
     logger.info(response.json())
 

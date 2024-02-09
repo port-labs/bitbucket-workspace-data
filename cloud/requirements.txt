@@ -1,3 +1,0 @@
-python-decouple==3.8
-requests==2.31.0
-loguru==0.7.2
