@@ -1,12 +1,12 @@
 ## Import the needed libraries
-import requests
-from requests.auth import HTTPBasicAuth
-from decouple import config
-from loguru import logger
-from typing import Any
 import time
 from datetime import datetime
+from typing import Any
 
+import requests
+from decouple import config
+from loguru import logger
+from requests.auth import HTTPBasicAuth
 
 # Get environment variables using the config object or os.environ["KEY"]
 # These are the credentials passed by the variables of your pipeline to your tasks and in to your env
@@ -16,10 +16,13 @@ PORT_CLIENT_SECRET = config("PORT_CLIENT_SECRET")
 BITBUCKET_USERNAME = config("BITBUCKET_USERNAME")
 BITBUCKET_PASSWORD = config("BITBUCKET_PASSWORD")
 BITBUCKET_API_URL = config("BITBUCKET_HOST")
+BITBUCKET_PROJECTS_FILTER = config(
+    "BITBUCKET_PROJECTS_FILTER", cast=lambda v: v.split(",") if v else None, default=[]
+)
 PORT_API_URL = "https://api.getport.io/v1"
 
 ## According to https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/
-RATE_LIMIT = 1000  # Maximum number of requests allowed per hour 
+RATE_LIMIT = 1000  # Maximum number of requests allowed per hour
 RATE_PERIOD = 3600  # Rate limit reset period in seconds (1 hour)
 
 # Initialize rate limiting variables
@@ -27,24 +30,29 @@ request_count = 0
 rate_limit_start = time.time()
 
 ## Get Port Access Token
-credentials = {'clientId': PORT_CLIENT_ID, 'clientSecret': PORT_CLIENT_SECRET}
-token_response = requests.post(f'{PORT_API_URL}/auth/access_token', json=credentials)
-access_token = token_response.json()['accessToken']
+credentials = {"clientId": PORT_CLIENT_ID, "clientSecret": PORT_CLIENT_SECRET}
+token_response = requests.post(f"{PORT_API_URL}/auth/access_token", json=credentials)
+access_token = token_response.json()["accessToken"]
 
 # You can now use the value in access_token when making further requests
-port_headers = {
-	'Authorization': f'Bearer {access_token}'
-}
+port_headers = {"Authorization": f"Bearer {access_token}"}
 
 ## Bitbucket user password https://developer.atlassian.com/server/bitbucket/how-tos/example-basic-authentication/
 bitbucket_auth = HTTPBasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
 
 
 def add_entity_to_port(blueprint_id, entity_object):
-    response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
-    logger.info(response.json())
+    logger.info(entity_object)
+    # response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
+    # logger.info(response.json())
 
-def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: int = 25, full_response: bool = False):
+
+def get_paginated_resource(
+    path: str,
+    params: dict[str, Any] = None,
+    page_size: int = 25,
+    full_response: bool = False,
+):
     logger.info(f"Requesting data for {path}")
 
     global request_count, rate_limit_start
@@ -88,17 +96,31 @@ def get_paginated_resource(path: str, params: dict[str, Any] = None, page_size: 
             if not next_page_start:
                 break
         except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error with code {e.response.status_code}, content: {e.response.text}")
+            logger.error(
+                f"HTTP error with code {e.response.status_code}, content: {e.response.text}"
+            )
             if e.response.status_code == 404:
-                logger.info(f"Could not find the requested resources {path}. Terminating gracefully...")
+                logger.info(
+                    f"Could not find the requested resources {path}. Terminating gracefully..."
+                )
                 return {}
             else:
                 raise
     logger.info(f"Successfully fetched paginated data for {path}")
 
+
+def get_single_project(project_key: str):
+    response = requests.get(
+        f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}", auth=bitbucket_auth
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def convert_to_datetime(timestamp: int):
     converted_datetime = datetime.utcfromtimestamp(timestamp / 1000.0)
-    return converted_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return converted_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def parse_repository_file_response(file_response: dict[str, Any]) -> str:
     lines = file_response.get("lines", [])
@@ -122,40 +144,41 @@ def process_project_entities(projects_data: list[dict[str, Any]]):
                 "description": project.get("description"),
                 "public": project["public"],
                 "type": project["type"],
-                "link": project["links"]["self"][0]["href"]
+                "link": project["links"]["self"][0]["href"],
             },
-            "relations": {}
+            "relations": {},
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+
 
 def process_repository_entities(repository_data: list[dict[str, Any]]):
     blueprint_id = "bitbucketRepository"
 
     for repo in repository_data:
-        readme_content = get_repository_readme(project_key=repo["project"]["key"], repo_slug=repo["slug"] )
+        readme_content = get_repository_readme(
+            project_key=repo["project"]["key"], repo_slug=repo["slug"]
+        )
         entity = {
-        "identifier": repo["slug"],
-        "title": repo["name"],
-        "properties": {
-            "description": repo.get("description"),
-            "state": repo["state"],
-            "forkable": repo["forkable"],
-            "public": repo["public"],
-            "link": repo["links"]["self"][0]["href"],
-            "documentation": readme_content,
-            "swagger_url": f"https://api.{repo['slug']}.com"
-        },
-        "relations": {
-            "project": repo["project"]["key"]
-        }
+            "identifier": repo["slug"],
+            "title": repo["name"],
+            "properties": {
+                "description": repo.get("description"),
+                "state": repo["state"],
+                "forkable": repo["forkable"],
+                "public": repo["public"],
+                "link": repo["links"]["self"][0]["href"],
+                "documentation": readme_content,
+                "swagger_url": f"https://api.{repo['slug']}.com",
+            },
+            "relations": {"project": repo["project"]["key"]},
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+
 
 def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
     blueprint_id = "bitbucketPullrequest"
 
     for pr in pullrequest_data:
-
         entity = {
             "identifier": str(pr["id"]),
             "title": pr["title"],
@@ -168,44 +191,61 @@ def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                 "owner": pr["author"]["user"]["displayName"],
                 "link": pr["links"]["self"][0]["href"],
                 "destination": pr["toRef"]["displayId"],
-                "participants": [user["user"]["displayName"] for user in pr.get("participants", [])],
-                "reviewers": [user["user"]["displayName"] for user in pr.get("reviewers", [])],
-                "source": pr["fromRef"]["displayId"]
+                "participants": [
+                    user["user"]["displayName"] for user in pr.get("participants", [])
+                ],
+                "reviewers": [
+                    user["user"]["displayName"] for user in pr.get("reviewers", [])
+                ],
+                "source": pr["fromRef"]["displayId"],
             },
-            "relations": {
-                "repository": pr["toRef"]["repository"]["slug"]
-            }
+            "relations": {"repository": pr["toRef"]["repository"]["slug"]},
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
-    
+
+
 def get_repository_readme(project_key: str, repo_slug: str) -> str:
     file_path = f"projects/{project_key}/repos/{repo_slug}/browse/README.md"
     readme_content = ""
-    for readme_file_batch in get_paginated_resource(path=file_path, page_size=500, full_response=True):
+    for readme_file_batch in get_paginated_resource(
+        path=file_path, page_size=500, full_response=True
+    ):
         file_content = parse_repository_file_response(readme_file_batch)
         readme_content += file_content
     return readme_content
 
+
 def get_repositories(project: dict[str, Any]):
     repositories_path = f"projects/{project['key']}/repos"
     for repositories_batch in get_paginated_resource(path=repositories_path):
-        logger.info(f"received repositories batch with size {len(repositories_batch)} from project: {project['key']}")
+        logger.info(
+            f"received repositories batch with size {len(repositories_batch)} from project: {project['key']}"
+        )
         process_repository_entities(repository_data=repositories_batch)
-    
+
         get_repository_pull_requests(repository_batch=repositories_batch)
-    
+
 
 def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
-    pr_params = {"state": "ALL"} ## Fetch all pull requests
+    pr_params = {"state": "ALL"}  ## Fetch all pull requests
     for repository in repository_batch:
         pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
-        for pull_requests_batch in get_paginated_resource(path=pull_requests_path, params=pr_params):
-            logger.info(f"received pull requests batch with size {len(pull_requests_batch)} from repo: {repository['slug']}")
+        for pull_requests_batch in get_paginated_resource(
+            path=pull_requests_path, params=pr_params
+        ):
+            logger.info(
+                f"received pull requests batch with size {len(pull_requests_batch)} from repo: {repository['slug']}"
+            )
             process_pullrequest_entities(pullrequest_data=pull_requests_batch)
+
 
 if __name__ == "__main__":
     project_path = "projects"
-    for projects_batch in get_paginated_resource(path=project_path):
+    if BITBUCKET_PROJECTS_FILTER:
+        projects = (list(map(get_single_project, BITBUCKET_PROJECTS_FILTER)),)
+    else:
+        projects = get_paginated_resource(path=project_path)
+    for projects_batch in projects:
         logger.info(f"received projects batch with size {len(projects_batch)}")
         process_project_entities(projects_data=projects_batch)
 

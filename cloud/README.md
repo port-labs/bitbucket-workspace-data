@@ -26,6 +26,8 @@ export PORT_CLIENT_ID=<ENTER CLIENT ID>
 export PORT_CLIENT_SECRET=<ENTER CLIENT SECRET>
 export BITBUCKET_USERNAME=<ENTER BITBUCKET USERNAME>
 export BITBUCKET_APP_PASSWORD=<ENTER BITBUCKET APP PASSWORD>
+# optional
+export BITBUCKET_PROJECTS_FILTER=<ENTER COMMA SEPARATED PROJECTS>
 
 git clone https://github.com/port-labs/bitbucket-workspace-data.git
 
@@ -41,6 +43,7 @@ The list of variables required to run this script are:
 - `PORT_CLIENT_SECRET`
 - `BITBUCKET_USERNAME` - BitBucket username to use when accessing the BitBucket resources
 - `BITBUCKET_APP_PASSWORD` - BitBucket App Password to use
+- `BITBUCKET_PROJECTS_FILTER` - Optional. Comma separated list of BitBucket projects to filter. If not provided, all projects will be fetched.
 
 
 Follow the documentation on how to [create a bitbucket app password](https://support.atlassian.com/bitbucket-cloud/docs/create-an-app-password/). 
