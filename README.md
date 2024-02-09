@@ -23,12 +23,14 @@ Create the pull request blueprint in Port [using this json file](./resources/pul
 
 To ingest data from your Bitbucket account to Port, run the following commands: 
 
-```
+```bash
 export PORT_CLIENT_ID=<ENTER CLIENT ID>
 export PORT_CLIENT_SECRET=<ENTER CLIENT SECRET>
 export BITBUCKET_USERNAME=<ENTER BITBUCKET USERNAME>
 export BITBUCKET_PASSWORD=<ENTER BITBUCKET PASSWORD>
 export BITBUCKET_HOST=<ENTER BITBUCKER HOST>
+# optional
+export BITBUCKET_PROJECTS_FILTER=<ENTER COMMA SEPARATED PROJECTS>
 
 git clone https://github.com/port-labs/bitbucket-workspace-data.git
 
@@ -45,6 +47,7 @@ The list of variables required to run this script are:
 - `BITBUCKET_HOST` - BitBucket server host such as `http://localhost:7990`
 - `BITBUCKET_USERNAME` - BitBucket username to use when accessing the BitBucket resources
 - `BITBUCKET_PASSWORD` - BitBucket account password
+- `BITBUCKET_PROJECTS_FILTER` - An optional comma separated list of BitBucket projects to filter. If not provided, all projects will be fetched.
 
 
 ## Port Webhook Configuration

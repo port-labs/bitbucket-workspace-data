@@ -42,9 +42,9 @@ bitbucket_auth = HTTPBasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_P
 
 
 def add_entity_to_port(blueprint_id, entity_object):
-    logger.info(entity_object)
-    # response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
-    # logger.info(response.json())
+    #logger.info(entity_object)
+    response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
+    logger.info(response.json())
 
 
 def get_paginated_resource(
@@ -242,9 +242,12 @@ def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
 if __name__ == "__main__":
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
+        #projects = [get_single_project(project_key=project) for project in BITBUCKET_PROJECTS_FILTER]
         projects = (list(map(get_single_project, BITBUCKET_PROJECTS_FILTER)),)
+        print(f"fetched projects: {projects}")
     else:
         projects = get_paginated_resource(path=project_path)
+
     for projects_batch in projects:
         logger.info(f"received projects batch with size {len(projects_batch)}")
         process_project_entities(projects_data=projects_batch)
