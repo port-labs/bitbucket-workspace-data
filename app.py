@@ -191,7 +191,7 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
             },
             "relations": dict(
                 project=repo["project"]["key"],
-                latest_commit_by=repo.get("latest_commit")
+                latestCommitAuthor=repo.get("__latestCommit")
                 .get("committer")
                 .get("emailAddress"),
             ),
@@ -258,7 +258,7 @@ def get_repositories(project: dict[str, Any]):
             repository_data=[
                 {
                     **repo,
-                    "latest_commit": get_latest_commit(
+                    "__latestCommit": get_latest_commit(
                         project_key=project["key"], repo_slug=repo["slug"]
                     ),
                 }

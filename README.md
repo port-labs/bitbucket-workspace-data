@@ -3,11 +3,14 @@
 
 ## Overview
 
-In this example, you will create blueprints for `bitbucketProject`, `bitbucketRepository` and `bitbucketPullrequest` that ingests all projects, repositories and pull requests from your Bitbucket account. Also, you will add some python script to make API calls to Bitbucket REST API and fetch data for your account. In addition to ingesting data via REST API, you will also configure webhooks to automatically update your entities in Port anytime an event occurs in your Bitbucket account. For this example, you will subscribe to `project` updates, `repository` updates events as well as `pull request` events.
+In this example, you will create blueprints for `bitbucketUser`, `bitbucketProject`, `bitbucketRepository` and `bitbucketPullrequest` that ingests all projects, repositories and pull requests from your Bitbucket account. Also, you will add some python script to make API calls to Bitbucket REST API and fetch data for your account. In addition to ingesting data via REST API, you will also configure webhooks to automatically update your entities in Port anytime an event occurs in your Bitbucket account. For this example, you will subscribe to `project` updates, `repository` updates events as well as `pull request` events.
 
 ## Getting started
 
 Log in to your Port account and create the following blueprints:
+
+### User blueprint
+Create the project blueprint in Port [using this json file](./resources/user.json)
 
 ### Project blueprint
 Create the project blueprint in Port [using this json file](./resources/project.json)
@@ -58,7 +61,7 @@ Follow the following steps to create a webhook:
 1. Navigate to the **Builder** section in Port and click **Data source**;
 2. Under **Webhook** tab, click **Custom integration**;
 3. In the **basic details** tab, you will be asked to provide information about your webhook such as the `title`, `identifier` `description`, and `icon`;
-4. In the **integration configuration** tab, copy and pase the [webhook configuration file](./resources/webhook_configuration.json) into the **Map the data from the external system into Port** form;
+4. In the **integration configuration** tab, copy and paste the [webhook configuration file](./resources/webhook_configuration.json) into the **Map the data from the external system into Port** form;
 5. Take note of the webhook `URL` provided by Port on this page. You will need this `URL` when subscribing to events in Bitbucket;
 
 6. Test the webhook configuration mapping and click on **Save**;

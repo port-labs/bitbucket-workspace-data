@@ -50,7 +50,7 @@
   "calculationProperties": {},
   "aggregationProperties": {},
   "relations": {
-    "latest_commit_by": {
+    "latestCommitAuthor": {
       "title": "Latest Commit By",
       "description": "The user that made the most recent commit to the base branch",
       "target": "bitbucketUser",
