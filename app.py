@@ -1,7 +1,7 @@
 ## Import the needed libraries
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from decouple import config
@@ -42,7 +42,11 @@ bitbucket_auth = HTTPBasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_P
 
 
 def add_entity_to_port(blueprint_id, entity_object):
-    response = requests.post(f'{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true', json=entity_object, headers=port_headers)
+    response = requests.post(
+        f"{PORT_API_URL}/blueprints/{blueprint_id}/entities?upsert=true&merge=true",
+        json=entity_object,
+        headers=port_headers,
+    )
     logger.info(response.json())
 
 
@@ -132,6 +136,22 @@ def parse_repository_file_response(file_response: dict[str, Any]) -> str:
     return readme_content
 
 
+def process_user_entities(users_data: list[dict[str, Any]]):
+    blueprint_id = "bitbucketUser"
+
+    for user in users_data:
+        entity = {
+            "identifier": user["emailAddress"],
+            "title": user["displayName"],
+            "properties": {
+                "username": user["name"],
+                "url": user["links"]["self"][0]["href"],
+            },
+            "relations": {},
+        }
+        add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+
+
 def process_project_entities(projects_data: list[dict[str, Any]]):
     blueprint_id = "bitbucketProject"
 
@@ -169,7 +189,12 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
                 "documentation": readme_content,
                 "swagger_url": f"https://api.{repo['slug']}.com",
             },
-            "relations": {"project": repo["project"]["key"]},
+            "relations": dict(
+                project=repo["project"]["key"],
+                latestCommitAuthor=repo.get("__latestCommit")
+                .get("committer")
+                .get("emailAddress"),
+            ),
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
@@ -190,15 +215,16 @@ def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                 "owner": pr["author"]["user"]["displayName"],
                 "link": pr["links"]["self"][0]["href"],
                 "destination": pr["toRef"]["displayId"],
-                "participants": [
-                    user["user"]["displayName"] for user in pr.get("participants", [])
-                ],
                 "reviewers": [
                     user["user"]["displayName"] for user in pr.get("reviewers", [])
                 ],
                 "source": pr["fromRef"]["displayId"],
             },
-            "relations": {"repository": pr["toRef"]["repository"]["slug"]},
+            "relations": {
+                "repository": pr["toRef"]["repository"]["slug"],
+                "participants": [pr.get("author")["user"]["emailAddress"]]
+                + [user["user"]["emailAddress"] for user in pr.get("participants", [])],
+            },
         }
         add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
@@ -214,13 +240,31 @@ def get_repository_readme(project_key: str, repo_slug: str) -> str:
     return readme_content
 
 
+def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
+    commit_path = f"projects/{project_key}/repos/{repo_slug}/commits"
+    for commit_batch in get_paginated_resource(path=commit_path, page_size=1):
+        latest_commit = commit_batch[0]
+        return latest_commit
+    return {}
+
+
 def get_repositories(project: dict[str, Any]):
     repositories_path = f"projects/{project['key']}/repos"
     for repositories_batch in get_paginated_resource(path=repositories_path):
         logger.info(
             f"received repositories batch with size {len(repositories_batch)} from project: {project['key']}"
         )
-        process_repository_entities(repository_data=repositories_batch)
+        process_repository_entities(
+            repository_data=[
+                {
+                    **repo,
+                    "__latestCommit": get_latest_commit(
+                        project_key=project["key"], repo_slug=repo["slug"]
+                    ),
+                }
+                for repo in repositories_batch
+            ]
+        )
 
         get_repository_pull_requests(repository_batch=repositories_batch)
 
@@ -240,6 +284,9 @@ def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
 
 if __name__ == "__main__":
     logger.info("Starting Bitbucket data extraction")
+    for users_batch in get_paginated_resource(path="admin/users"):
+        logger.info(f"received users batch with size {len(users_batch)}")
+        process_user_entities(users_data=users_batch)
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
         projects = (list(map(get_single_project, BITBUCKET_PROJECTS_FILTER)),)
@@ -252,5 +299,5 @@ if __name__ == "__main__":
 
         for project in projects_batch:
             get_repositories(project=project)
-    
+
     logger.info("Bitbucket data extraction completed")
