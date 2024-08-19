@@ -2,7 +2,6 @@
 import time
 from datetime import datetime
 from typing import Any, Optional
-
 import requests
 from decouple import config
 from loguru import logger
@@ -191,8 +190,8 @@ def process_repository_entities(repository_data: list[dict[str, Any]]):
             },
             "relations": dict(
                 project=repo["project"]["key"],
-                latestCommitAuthor=repo.get("__latestCommit")
-                .get("committer")
+                latestCommitAuthor=repo.get("__latestCommit", {})
+                .get("committer", {})
                 .get("emailAddress"),
             ),
         }
@@ -241,10 +240,14 @@ def get_repository_readme(project_key: str, repo_slug: str) -> str:
 
 
 def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
-    commit_path = f"projects/{project_key}/repos/{repo_slug}/commits"
-    for commit_batch in get_paginated_resource(path=commit_path, page_size=1):
-        latest_commit = commit_batch[0]
-        return latest_commit
+    try:
+        commit_path = f"projects/{project_key}/repos/{repo_slug}/commits"
+        for commit_batch in get_paginated_resource(path=commit_path, page_size=1):
+            if commit_batch:
+                latest_commit = commit_batch[0]
+                return latest_commit
+    except Exception as e:
+        logger.error(f"Error fetching latest commit for repo {repo_slug}: {e}")
     return {}
 
 
