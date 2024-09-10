@@ -34,6 +34,7 @@ export BITBUCKET_PASSWORD=<ENTER BITBUCKET PASSWORD>
 export BITBUCKET_HOST=<ENTER BITBUCKER HOST>
 # optional
 export BITBUCKET_PROJECTS_FILTER=<ENTER COMMA SEPARATED PROJECTS>
+export WEBHOOK_SECRET=<ENTER WEBHOOK SECRET>
 
 git clone https://github.com/port-labs/bitbucket-workspace-data.git
 
@@ -44,6 +45,14 @@ pip install -r ./requirements.txt
 python app.py
 ```
 
+
+> ### Port Webhook Configuration
+> 
+> This app will automatically set up a webhook that allows Bitbucket to send events to Port. To understand more about how Bitbucket sends event payloads via webhooks, you can refer to [this documentation](https://confluence.atlassian.com/bitbucketserver/event-payload-938025882.html).
+> 
+> Ensure that the Bitbucket credentials you use have `PROJECT_ADMIN` permissions to successfully configure the webhook. For more details on the necessary permissions and setup, see the [official Bitbucket documentation](https://developer.atlassian.com/server/bitbucket/rest/v910/api-group-project/#api-api-latest-projects-projectkey-webhooks-post).
+
+
 The list of variables required to run this script are:
 - `PORT_CLIENT_ID`
 - `PORT_CLIENT_SECRET`
@@ -51,39 +60,7 @@ The list of variables required to run this script are:
 - `BITBUCKET_USERNAME` - BitBucket username to use when accessing the BitBucket resources
 - `BITBUCKET_PASSWORD` - BitBucket account password
 - `BITBUCKET_PROJECTS_FILTER` - An optional comma separated list of BitBucket projects to filter. If not provided, all projects will be fetched.
+- `WEBHOOK_SECRET` - An optional secret to use when creating a webhook in Port. If not provided, `bitbucket_webhook_secret` will be used.
 
-
-## Port Webhook Configuration
-
-Webhooks are a great way to receive updates from third party platforms, and in this case, Bitbucket. To [create a bitbucket webhook](https://confluence.atlassian.com/bitbucketserver/manage-webhooks-938025878.html), you will first need to generate a webhook URL from Port.
-
-Follow the following steps to create a webhook:
-1. Navigate to the **Builder** section in Port and click **Data source**;
-2. Under **Webhook** tab, click **Custom integration**;
-3. In the **basic details** tab, you will be asked to provide information about your webhook such as the `title`, `identifier` `description`, and `icon`;
-4. In the **integration configuration** tab, copy and paste the [webhook configuration file](./resources/webhook_configuration.json) into the **Map the data from the external system into Port** form;
-5. Take note of the webhook `URL` provided by Port on this page. You will need this `URL` when subscribing to events in Bitbucket;
-
-6. Test the webhook configuration mapping and click on **Save**;
-7. Under the **Advanced settings** tab, you will authenticate the payload from Bitbucket. Enter the following details:
-    1. `Secret` - enter your webhook secret. You will need this value when setting up the webhook trigger in Bitbucket;
-    2. `Signature Header Name` - enter `X-Hub-Signature`;
-    3. `Signature Algorithm` - select `sha256` from the dropdown;
-    4. `Signature Prefix` - enter `sha256=`.
-
-
-## Subscribing to Bitbucket webhook
-1. From your Bitbucket account, open the project where you want to add the webhook;
-2. Click **Project settings** or the gear icon on the left sidebar;
-3. On the Workflow section, select **Webhooks** on the left sidebar;
-4. Click the **Add webhook** button to create a webhook for the repository; 
-5. Input the following details:
-    1. `Title` - use a meaningful name such as Port Webhook;
-    2. `URL` - enter the value of the webhook `URL` you received after creating the webhook configuration in Port;
-    3. `Secret` - enter the value of the secret you provided when configuring the webhook in Port;
-    4.  `Triggers` - Under **Project** select `modified` Under **Repository** select `modified`. Under **Pull request** select any event based on your case;
-6. Click **Save** to save the webhook;
-
-Follow [this documentation](https://confluence.atlassian.com/bitbucketserver/event-payload-938025882.html) to learn more about webhook events payload in Bitbucket.
 
 Done! any change that happens to your project, repository or pull requests in Bitbucket will trigger a webhook event to the webhook URL provided by Port. Port will parse the events according to the mapping and update the catalog entities accordingly.

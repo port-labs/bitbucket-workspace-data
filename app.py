@@ -1,4 +1,5 @@
 ## Import the needed libraries
+import json
 import time
 from datetime import datetime
 from typing import Any, Optional
@@ -19,10 +20,18 @@ BITBUCKET_PROJECTS_FILTER = config(
     "BITBUCKET_PROJECTS_FILTER", cast=lambda v: v.split(",") if v else None, default=[]
 )
 PORT_API_URL = "https://api.getport.io/v1"
+WEBHOOK_SECRET = config("WEBHOOK_SECRET", default="bitbucket_webhook_secret")
 
 ## According to https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/
 RATE_LIMIT = 1000  # Maximum number of requests allowed per hour
 RATE_PERIOD = 3600  # Rate limit reset period in seconds (1 hour)
+
+WEBHOOK_EVENTS = [
+    "repo:modified",
+    "project:modified",
+    "pr:modified",
+    "pr:opened"
+]
 
 # Initialize rate limiting variables
 request_count = 0
@@ -38,6 +47,118 @@ port_headers = {"Authorization": f"Bearer {access_token}"}
 
 ## Bitbucket user password https://developer.atlassian.com/server/bitbucket/how-tos/example-basic-authentication/
 bitbucket_auth = HTTPBasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
+
+
+def get_or_create_port_webhook():
+    logger.info("Checking Port webhooks")
+    try:
+        # Try to retrieve the webhook by its identifier
+        response = requests.get(
+            f"{PORT_API_URL}/webhooks/bitbucket_mapper",
+            headers=port_headers,
+        )
+        response.raise_for_status()
+        webhook_info = response.json()
+        logger.info(f"Port webhook exists. URL: {webhook_info.get('integration', {}).get('url')}")
+        return webhook_info.get('integration', {}).get('url')
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            logger.info("Port webhook not found, creating a new one.")
+            return create_port_webhook()
+        else:
+            logger.error(f"Error checking Port webhook: {e.response.status_code}")
+            return None
+
+
+def create_port_webhook():
+    logger.info("Creating Port webhook")
+    # Load the webhook configuration from the JSON file
+    with open('./resources/webhook_configuration.json', 'r') as file:
+        mappings = json.load(file)
+
+    webhook_data = {
+        "identifier": "bitbucket_mapper",
+        "title": "Bitbucket Webhook",
+        "description": "Webhook for receiving Bitbucket events",
+        "icon": "BitBucket",  # Replace with the actual icon name or URL
+        "mappings": mappings,
+        "enabled": True,
+        "security": {
+            "secret": WEBHOOK_SECRET,  # Replace with the actual secret for Bitbucket
+            "signatureHeaderName": "X-Hub-Signature",
+            "signatureAlgorithm": "sha256",
+            "signaturePrefix": "sha256=",
+            "requestIdentifierPath": ".headers['X-Request-ID']"  # Optional path based on your needs
+        },
+        "integrationType": "custom"
+    }
+
+    try:
+        response = requests.post(
+            f"{PORT_API_URL}/webhooks",
+            json=webhook_data,
+            headers=port_headers,
+        )
+        response.raise_for_status()
+        webhook_info = response.json()
+        logger.info(f"Successfully created Port webhook: {webhook_info.get('integration', {}).get('url')}")
+        return webhook_info.get('integration', {}).get('url')
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 442:
+            logger.error("Incorrect mapping, kindly fix!")
+            return None
+        logger.error(f"Error creating Port webhook: {e.response.status_code}")
+        return None
+
+
+def get_or_create_project_webhook(project_key: str, webhook_url: str, events: list[str]):
+    logger.info(f"Checking webhooks for project: {project_key}")
+    if webhook_url is not None:
+        try:
+            matching_webhooks = [
+                webhook for project_webhooks_batch in get_paginated_resource(path=f"projects/{project_key}/webhooks")
+                for webhook in project_webhooks_batch if webhook["url"] == webhook_url
+            ]
+            if matching_webhooks:
+                logger.info(f"Webhook already exists for project {project_key}")
+                return matching_webhooks[0]
+            logger.info(f"Webhook not found for project {project_key}. Creating a new one.")
+            return create_project_webhook(project_key=project_key, webhook_url=webhook_url, events=events)
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error when checking webhooks for project {project_key}: {e.response.status_code}")
+            return None
+    else:
+        logger.error("Port webhook URL is not available. Skipping webhook check...")
+        return None
+
+
+def create_project_webhook(project_key: str, webhook_url: str, events: list[str]):
+    logger.info(f"Creating webhook for project: {project_key}")
+    webhook_data = {
+        "name": "Port Webhook",
+        "url": webhook_url,
+        "events": events,
+        "active": True,
+        "sslVerificationRequired": False,
+        "configuration": {
+            "secret": WEBHOOK_SECRET,
+            "createdBy": "Port",
+        }
+    }
+    try:
+        response = requests.post(
+            f"{BITBUCKET_API_URL}/rest/api/latest/projects/{project_key}/webhooks",
+            json=webhook_data,
+            auth=bitbucket_auth,
+        )
+        response.raise_for_status()
+        logger.info(f"Successfully created webhook for project {project_key}")
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        logger.error(
+            f"HTTP error when creating webhook for project {project_key}: {e.response.status_code}"
+        )
+        return None
 
 
 def add_entity_to_port(blueprint_id, entity_object):
@@ -287,6 +408,9 @@ def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
 
 if __name__ == "__main__":
     logger.info("Starting Bitbucket data extraction")
+    port_webhook_url = get_or_create_port_webhook()
+    if not port_webhook_url:
+        logger.error("Failed to get or create Port webhook. Skipping webhook setup...")
     for users_batch in get_paginated_resource(path="admin/users"):
         logger.info(f"received users batch with size {len(users_batch)}")
         process_user_entities(users_data=users_batch)
@@ -302,5 +426,6 @@ if __name__ == "__main__":
 
         for project in projects_batch:
             get_repositories(project=project)
-
+            # Check and create project webhooks in Bitbucket using the Port webhook URL
+            webhooks = get_or_create_project_webhook(project_key=project["key"], webhook_url=port_webhook_url, events=WEBHOOK_EVENTS)
     logger.info("Bitbucket data extraction completed")
