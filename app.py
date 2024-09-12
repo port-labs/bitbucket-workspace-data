@@ -51,7 +51,7 @@ bitbucket_auth = BasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSW
 # Obtain the access token synchronously
 credentials = {"clientId": PORT_CLIENT_ID, "clientSecret": PORT_CLIENT_SECRET}
 token_response = httpx.post(f"{PORT_API_URL}/auth/access_token", json=credentials)
-port_headers = {"Authorization": f"Bearer {token_response.json()["accessToken"]}"}
+port_headers = {"Authorization": f"Bearer {token_response.json()['accessToken']}"}
 
 # Initialize the global AsyncClient with a timeout
 client = httpx.AsyncClient(timeout=httpx.Timeout(60))
