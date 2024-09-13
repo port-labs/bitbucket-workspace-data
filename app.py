@@ -231,7 +231,8 @@ async def get_paginated_resource(
             logger.error(
                 f"HTTP error with code {e.response.status_code}, content: {e.response.text}"
             )
-            raise
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP occurred while fetching Bitbucket data: {e}")
         logger.info(f"Successfully fetched paginated data for {path}")
 
 async def get_single_project(project_key: str):
