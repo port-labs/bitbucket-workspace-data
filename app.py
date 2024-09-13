@@ -358,10 +358,11 @@ async def get_repository_readme(project_key: str, repo_slug: str) -> str:
 async def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
     try:
         commit_path = f"projects/{project_key}/repos/{repo_slug}/commits"
-        async for commit_batch in get_paginated_resource(path=commit_path, page_size=1):
+        async for commit_batch in get_paginated_resource(path=commit_path):
             if commit_batch:
                 latest_commit = commit_batch[0]
                 return latest_commit
+            return {}
     except Exception as e:
         logger.error(f"Error fetching latest commit for repo {repo_slug}: {e}")
     return {}
