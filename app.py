@@ -183,8 +183,6 @@ async def get_paginated_resource(
         page_size: int = 25,
         full_response: bool = False,
 ):
-    logger.info(f"Requesting data for {path}")
-
     global request_count, rate_limit_start
 
     # Check if we've exceeded the rate limit, and if so, wait until the reset period is over
@@ -212,7 +210,7 @@ async def get_paginated_resource(
             response.raise_for_status()
             page_json = response.json()
             request_count += 1
-
+            logger.debug(f"Requested data for {path}, with params: {params} and response code: {response.status_code}")
             if full_response:
                 yield page_json
             else:
