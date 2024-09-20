@@ -134,7 +134,7 @@ async def get_or_create_project_webhook(project_key: str, webhook_url: str, even
             )
         except httpx.HTTPStatusError as e:
             logger.error(
-                f"HTTP error when checking webhooks for project {project_key}: {e.response.status_code}"
+                f"HTTP error when checking webhooks for project: {project_key} code: {e.response.status_code} response: {e.response.text}"
             )
             return None
     else:
@@ -165,7 +165,7 @@ async def create_project_webhook(project_key: str, webhook_url: str, events: lis
         return response.json()
     except httpx.HTTPStatusError as e:
         logger.error(
-            f"HTTP error when creating webhook for project {project_key}: {e.response.status_code}"
+            f"HTTP error when creating webhook for project: {project_key} code: {e.response.status_code} response: {e.response.text}"
             )
         return None
 
