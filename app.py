@@ -8,7 +8,7 @@ from decouple import config
 from loguru import logger
 from httpx import BasicAuth
 
-# These are the credentials passed by the variables of your pipeline to your tasks and in to your env
+# These are the credentials passed by the variables of your pipeline to your tasks and into your env
 PORT_CLIENT_ID = config("PORT_CLIENT_ID")
 PORT_CLIENT_SECRET = config("PORT_CLIENT_SECRET")
 BITBUCKET_USERNAME = config("BITBUCKET_USERNAME")
@@ -17,7 +17,7 @@ BITBUCKET_API_URL = config("BITBUCKET_HOST")
 BITBUCKET_PROJECTS_FILTER = config(
     "BITBUCKET_PROJECTS_FILTER", cast=lambda v: v.split(",") if v else None, default=[]
 )
-PORT_API_URL =  config("PORT_API_URL", default="https://api.getport.io/v1")
+PORT_API_URL = config("PORT_API_URL", default="https://api.getport.io/v1")
 WEBHOOK_SECRET = config("WEBHOOK_SECRET", default="bitbucket_webhook_secret")
 
 # According to https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/
@@ -45,7 +45,8 @@ WEBHOOK_EVENTS = [
 # Initialize rate limiting variables
 request_count = 0
 rate_limit_start = time.time()
-port_access_token, token_expiry_time, port_headers = None, datetime.now(), {}
+port_access_token, token_expiry_time = None, datetime.now()
+port_headers = {}
 bitbucket_auth = BasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
 client = httpx.AsyncClient(timeout=httpx.Timeout(60))
 
@@ -58,13 +59,21 @@ async def get_access_token():
     token_expiry_time = datetime.now() + timedelta(seconds=expires_in)
     return access_token, token_expiry_time
 
-async def refresh_token_if_expired():
+async def refresh_access_token():
     global port_access_token, token_expiry_time, port_headers
+    logger.info("Refreshing access token...")
+    port_access_token, token_expiry_time = await get_access_token()
+    port_headers = {"Authorization": f"Bearer {port_access_token}"}
+    logger.info(f"New token received. Expiry time: {token_expiry_time}")
+
+async def refresh_token_if_expired():
     if datetime.now() >= token_expiry_time:
-        logger.info("Access token has expired, requesting a new one...")
-        port_access_token, token_expiry_time = await get_access_token()
-        port_headers = {"Authorization": f"Bearer {port_access_token}"}
-        logger.info(f"New token received. Expiry time: {token_expiry_time}")
+        await refresh_access_token()
+
+async def refresh_token_and_retry(method: str, url: str, **kwargs):
+    await refresh_access_token()
+    response = await client.request(method, url, headers=port_headers, **kwargs)
+    return response
 
 async def send_port_request(method: str, endpoint: str, payload: Optional[dict] = None):
     global port_access_token, token_expiry_time, port_headers
@@ -78,16 +87,15 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
         if e.response.status_code == 401:
             # Unauthorized, refresh token and retry
             logger.info("Received 401 Unauthorized. Refreshing token and retrying...")
-            await refresh_token_if_expired()
-            response = await client.request(method, url, headers=port_headers, json=payload)
+            response = await refresh_token_and_retry(method, url, json=payload)
             try:
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as e:
-                logger.error(f"Error after retrying: {e.response.status_code}")
+                logger.error(f"Error after retrying: {e.response.status_code}, {e.response.text}")
                 return {"status_code": e.response.status_code, "response": e.response}
         else:
-            logger.error(f"HTTP error occurred: {e.response.status_code}")
+            logger.error(f"HTTP error occurred: {e.response.status_code}, {e.response.text}")
             return {"status_code": e.response.status_code, "response": e.response}
     except httpx.HTTPError as e:
         logger.error(f"HTTP error occurred: {e}")
@@ -96,22 +104,22 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
 async def get_or_create_port_webhook():
     logger.info("Checking if a Bitbucket webhook is configured on Port...")
     response = await send_port_request(
-        "GET",
-        f"webhooks/{WEBHOOK_IDENTIFIER}"
+        method="GET",
+        endpoint=f"webhooks/{WEBHOOK_IDENTIFIER}"
     )
     if isinstance(response, dict):
         status_code = response.get("status_code")
+        error_response = response.get("response")
         if status_code == 404:
             logger.info("Port webhook not found, creating a new one.")
             return await create_port_webhook()
         else:
-            logger.error(f"Error checking Port webhook: {status_code}")
+            logger.error(f"Error checking Port webhook: {status_code}, {error_response.text}")
             return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
         logger.info(f"Webhook configuration exists in Port. URL: {webhook_url}")
         return webhook_url
-
 
 async def create_port_webhook():
     logger.info("Creating a webhook for Bitbucket on Port...")
@@ -134,18 +142,18 @@ async def create_port_webhook():
         "integrationType": "custom",
     }
     response = await send_port_request(
-        "POST",
-        f"webhooks",
-        webhook_data
+        method="POST",
+        endpoint="webhooks",
+        payload=webhook_data
     )
     if isinstance(response, dict):
         status_code = response.get("status_code")
+        error_response = response.get("response")
         if status_code == 442:
             logger.error("Incorrect mapping, kindly fix!")
-            return None
         else:
-            logger.error(f"Error creating Port webhook: {status_code}")
-            return None
+            logger.error(f"Error creating Port webhook: {status_code}, {error_response.text}")
+        return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
         logger.info(f"Webhook configuration successfully created in Port: {webhook_url}")
@@ -204,17 +212,21 @@ async def create_project_webhook(project_key: str, webhook_url: str, events: lis
     except httpx.HTTPStatusError as e:
         logger.error(
             f"HTTP error when creating webhook for project: {project_key} code: {e.response.status_code} response: {e.response.text}"
-            )
+        )
         return None
 
 async def add_entity_to_port(blueprint_id, entity_object):
     response = await send_port_request(
-        "POST",
-        f"blueprints/{blueprint_id}/entities?upsert=true&merge=true",
-        entity_object
+        method="POST",
+        endpoint=f"blueprints/{blueprint_id}/entities?upsert=true&merge=true",
+        payload=entity_object
     )
     if isinstance(response, dict):
-        logger.error(f'Error adding entity to Port: {response.get("status_code")}, {response.get("response").text}')
+        status_code = response.get("status_code")
+        error_response = response.get("response")
+        logger.error(f"Error adding entity to Port: {status_code}")
+        if error_response:
+            logger.error(f"Error details: {error_response.text}")
     else:
         logger.info(response.json())
 
