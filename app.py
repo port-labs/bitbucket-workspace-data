@@ -87,8 +87,8 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
         if e.response.status_code == 401:
             # Unauthorized, refresh token and retry
             logger.info("Received 401 Unauthorized. Refreshing token and retrying...")
-            response = await refresh_token_and_retry(method, url, json=payload)
             try:
+                response = await refresh_token_and_retry(method, url, json=payload)
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as e:
@@ -108,13 +108,10 @@ async def get_or_create_port_webhook():
         endpoint=f"webhooks/{WEBHOOK_IDENTIFIER}"
     )
     if isinstance(response, dict):
-        status_code = response.get("status_code")
-        error_response = response.get("response")
-        if status_code == 404:
+        if response.get("status_code") == 404:
             logger.info("Port webhook not found, creating a new one.")
             return await create_port_webhook()
         else:
-            logger.error(f"Error checking Port webhook: {status_code}, {error_response.text}")
             return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
@@ -147,12 +144,8 @@ async def create_port_webhook():
         payload=webhook_data
     )
     if isinstance(response, dict):
-        status_code = response.get("status_code")
-        error_response = response.get("response")
-        if status_code == 442:
+        if response.get("status_code") == 442:
             logger.error("Incorrect mapping, kindly fix!")
-        else:
-            logger.error(f"Error creating Port webhook: {status_code}, {error_response.text}")
         return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
@@ -221,13 +214,7 @@ async def add_entity_to_port(blueprint_id, entity_object):
         endpoint=f"blueprints/{blueprint_id}/entities?upsert=true&merge=true",
         payload=entity_object
     )
-    if isinstance(response, dict):
-        status_code = response.get("status_code")
-        error_response = response.get("response")
-        logger.error(f"Error adding entity to Port: {status_code}")
-        if error_response:
-            logger.error(f"Error details: {error_response.text}")
-    else:
+    if not isinstance(response, dict):
         logger.info(response.json())
 
 async def get_paginated_resource(
