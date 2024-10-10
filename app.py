@@ -422,7 +422,7 @@ async def get_repositories(project: dict[str, Any]):
                 for repo in repositories_batch
             ]
         )
-        
+
         await get_repository_pull_requests(repository_batch=repositories_batch)
 
 async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
