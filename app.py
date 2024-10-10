@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import asyncio
 from typing import Any, Optional
 import httpx
-import yaml
 from decouple import config
 from loguru import logger
 from httpx import BasicAuth
@@ -423,26 +422,7 @@ async def get_repositories(project: dict[str, Any]):
                 for repo in repositories_batch
             ]
         )
-        await asyncio.gather(*(create_entity_from_yaml(project_key=project["key"], repo_slug=repo["slug"]) for repo in repositories_batch))
         await get_repository_pull_requests(repository_batch=repositories_batch)
-
-
-async def read_port_yaml_from_bitbucket(project_key, repo_slug):
-    url = f"projects/{project_key}/repos/{repo_slug}/browse/port.yaml"
-    port_yaml_file = ""
-    async for port_file_batch in get_paginated_resource(
-            path=url, page_size=500, full_response=True
-    ):
-        file_content = parse_repository_file_response(port_file_batch)
-        port_yaml_file += file_content
-    return yaml.safe_load(port_yaml_file)
-
-async def create_entity_from_yaml(project_key, repo_slug):
-    entity_data = await read_port_yaml_from_bitbucket(project_key, repo_slug)
-    if entity_data:
-        logger.info(f"Creating entity from port.yaml: {entity_data}")
-        for entity in entity_data:
-            await add_entity_to_port(blueprint_id=entity.get("blueprint"), entity_object=entity)
 
 async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
     pr_params = {"state": "ALL"}  ## Fetch all pull requests
