@@ -1,0 +1,15 @@
+- identifier: notification-microservice
+  title: Notification Service
+  blueprint: microservice
+  properties:
+    url: https://www.bitbucket.domain.com/user/notification
+    version: "1.0.0"
+  relations:
+
+- identifier: user-service
+  title: User Service
+  blueprint: microservice
+  properties:
+    url: https://www.bitbucket.domain.com/user/user-service
+    version: "2.1.0"
+  relations:
