@@ -19,7 +19,6 @@ BITBUCKET_PROJECTS_FILTER = config(
     "BITBUCKET_PROJECTS_FILTER", cast=lambda v: v.split(",") if v else None, default=[]
 )
 PORT_API_URL = config("PORT_API_URL", default="https://api.getport.io/v1")
-WEBHOOK_SECRET = config("WEBHOOK_SECRET", default="bitbucket_webhook_secret")
 
 # According to https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/
 RATE_LIMIT = 1000  # Maximum number of requests allowed per hour
