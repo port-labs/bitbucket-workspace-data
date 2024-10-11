@@ -1,5 +1,4 @@
 import json
-import re
 import time
 from datetime import datetime, timedelta
 import asyncio
@@ -76,11 +75,6 @@ async def refresh_token_and_retry(method: str, url: str, **kwargs):
     response = await client.request(method, url, headers=port_headers, **kwargs)
     return response
 
-def sanitize_identifier(identifier: str) -> str:
-    pattern = r"[^A-Za-z0-9@_.+:\/=-]"
-    # Replace any character that does not match the pattern with an underscore
-    return re.sub(pattern, "_", identifier)
-
 async def send_port_request(method: str, endpoint: str, payload: Optional[dict] = None):
     global port_access_token, token_expiry_time, port_headers
     await refresh_token_if_expired()
@@ -91,6 +85,7 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
         return response
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 401:
+            # Unauthorized, refresh token and retry
             logger.info("Received 401 Unauthorized. Refreshing token and retrying...")
             try:
                 response = await refresh_token_and_retry(method, url, json=payload)
@@ -304,6 +299,7 @@ async def process_user_entities(users_data: list[dict[str, Any]]):
 
     for user in users_data:
         entity = {
+            "identifier": user.get("emailAddress"),
             "title": user.get("displayName"),
             "properties": {
                 "username": user.get("name"),
@@ -311,9 +307,6 @@ async def process_user_entities(users_data: list[dict[str, Any]]):
             },
             "relations": {},
         }
-        identifier = str(user.get("emailAddress"))
-        if identifier:
-            entity["identifier"] = sanitize_identifier(identifier)
         await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
 async def process_project_entities(projects_data: list[dict[str, Any]]):
@@ -321,6 +314,7 @@ async def process_project_entities(projects_data: list[dict[str, Any]]):
 
     for project in projects_data:
         entity = {
+            "identifier": project.get("key"),
             "title": project.get("name"),
             "properties": {
                 "description": project.get("description"),
@@ -330,9 +324,6 @@ async def process_project_entities(projects_data: list[dict[str, Any]]):
             },
             "relations": {},
         }
-        identifier = str(project.get("key"))
-        if identifier:
-            entity["identifier"] = sanitize_identifier(identifier)
         await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
 async def process_repository_entities(repository_data: list[dict[str, Any]]):
@@ -343,6 +334,7 @@ async def process_repository_entities(repository_data: list[dict[str, Any]]):
             project_key=repo["project"]["key"], repo_slug=repo["slug"]
         )
         entity = {
+            "identifier": repo.get("slug"),
             "title": repo.get("name"),
             "properties": {
                 "description": repo.get("description"),
@@ -360,9 +352,6 @@ async def process_repository_entities(repository_data: list[dict[str, Any]]):
                 .get("emailAddress"),
             ),
         }
-        identifier = str(repo.get("slug"))
-        if identifier:
-            entity["identifier"] = sanitize_identifier(identifier)
         await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
 async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
@@ -370,6 +359,7 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
 
     for pr in pullrequest_data:
         entity = {
+            "identifier": str(pr.get("id")),
             "title": pr.get("title"),
             "properties": {
                 "created_on": convert_to_datetime(pr.get("createdDate")),
@@ -391,9 +381,6 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                                 + [user.get("user", {}).get("emailAddress") for user in pr.get("participants", [])],
             },
         }
-        identifier = str(pr.get("id"))
-        if identifier:
-            entity["identifier"] = sanitize_identifier(identifier)
         await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
 
 async def get_repository_readme(project_key: str, repo_slug: str) -> str:
