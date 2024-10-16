@@ -71,6 +71,12 @@
         "title": "Merge Commit",
         "type": "string",
         "icon": "DefaultProperty"
+      },
+      "mergeAt": {
+        "title": "Merge At",
+        "type": "string",
+        "format": "date-time",
+        "icon": "DefaultProperty"
       }
     },
     "required": []
