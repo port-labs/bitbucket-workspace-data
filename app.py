@@ -172,6 +172,64 @@ async def create_port_webhook():
         return webhook_url
 
 
+def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
+    return {
+        "name": "Port Webhook",
+        "url": webhook_url,
+        "events": events,
+        "active": True,
+        "sslVerificationRequired": True,
+        "configuration": {"secret": WEBHOOK_SECRET, "createdBy": "Port"},
+    }
+
+
+async def create_project_level_webhook(
+    project_key: str, webhook_url: str, events: list[str]
+):
+    logger.info(f"Creating project-level webhook for project: {project_key}")
+    webhook_data = generate_webhook_data(webhook_url, events)
+
+    try:
+        response = await client.post(
+            f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}/webhooks",
+            json=webhook_data,
+            auth=bitbucket_auth,
+        )
+        response.raise_for_status()
+        logger.info(f"Successfully created project-level webhook for {project_key}")
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"HTTP error when creating webhook for project: {project_key} code: {e.response.status_code} response: {e.response.text}"
+        )
+        return None
+
+
+async def create_repo_level_webhook(
+    project_key: str, repo_key: str, webhook_url: str, events: list[str]
+):
+    """
+    Create a repository-level webhook in Bitbucket.
+    """
+    logger.info(f"Creating repo-level webhook for repo: {repo_key}")
+    webhook_data = generate_webhook_data(webhook_url, events)
+
+    try:
+        response = await client.post(
+            f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}/repos/{repo_key}/webhooks",
+            json=webhook_data,
+            auth=bitbucket_auth,
+        )
+        response.raise_for_status()
+        logger.info(f"Successfully created repo-level webhook for {repo_key}")
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"HTTP error when creating webhook for repo: {repo_key} code: {e.response.status_code} response: {e.response.text}"
+        )
+        return None
+
+
 async def get_or_create_bitbucket_webhook(
     project_key: str,
     webhook_url: str,
@@ -181,36 +239,32 @@ async def get_or_create_bitbucket_webhook(
     logger.info(f"Checking webhooks for {repo_key or project_key}")
     if webhook_url is not None:
         try:
-            if not repo_key:
-                matching_webhooks = [
-                    webhook
-                    async for project_webhooks_batch in get_paginated_resource(
-                        path=f"projects/{project_key}/webhooks"
+            matching_webhooks = [
+                webhook
+                async for project_webhooks_batch in get_paginated_resource(
+                    path=(
+                        f"projects/{project_key}/repos/{repo_key}/webhooks"
+                        if repo_key
+                        else f"projects/{project_key}/webhooks"
                     )
-                    for webhook in project_webhooks_batch
-                    if webhook["url"] == webhook_url
-                ]
-            else:
-                matching_webhooks = [
-                    webhook
-                    async for repo_webhooks_batch in get_paginated_resource(
-                        path=f"projects/{project_key}/repos/{repo_key}/webhooks"
-                    )
-                    for webhook in repo_webhooks_batch
-                    if webhook["url"] == webhook_url
-                ]
+                )
+                for webhook in project_webhooks_batch
+                if webhook["url"] == webhook_url
+            ]
             if matching_webhooks:
                 logger.info(f"Webhook already exists for {repo_key or project_key}.")
                 return matching_webhooks[0]
             logger.info(
                 f"Webhook not found for {repo_key or project_key}. Creating a new one."
             )
-            return await create_bitbucket_webhook(
-                project_key=project_key,
-                webhook_url=webhook_url,
-                events=events,
-                repo_key=repo_key,
-            )
+            if repo_key:
+                return await create_repo_level_webhook(
+                    project_key, repo_key, webhook_url, events
+                )
+            else:
+                return await create_project_level_webhook(
+                    project_key, webhook_url, events
+                )
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"HTTP error when checking webhooks for project: {project_key} code: {e.response.status_code} response: {e.response.text}"
@@ -218,47 +272,6 @@ async def get_or_create_bitbucket_webhook(
             return None
     else:
         logger.error("Port webhook URL is not available. Skipping webhook check...")
-        return None
-
-
-async def create_bitbucket_webhook(
-    project_key: str,
-    webhook_url: str,
-    events: list[str],
-    repo_key: Optional[str] = None,
-):
-    logger.info(f"Creating webhook for: {repo_key or project_key}")
-    webhook_data = {
-        "name": "Port Webhook",
-        "url": webhook_url,
-        "events": events,
-        "active": True,
-        "sslVerificationRequired": True,
-        "configuration": {
-            "secret": WEBHOOK_SECRET,
-            "createdBy": "Port",
-        },
-    }
-    try:
-        if not repo_key:
-            response = await client.post(
-                f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}/webhooks",
-                json=webhook_data,
-                auth=bitbucket_auth,
-            )
-        else:
-            response = await client.post(
-                f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}/repos/{repo_key}/webhooks",
-                json=webhook_data,
-                auth=bitbucket_auth,
-            )
-        response.raise_for_status()
-        logger.info(f"Successfully created webhook for {repo_key or project_key}")
-        return response.json()
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            f"HTTP error when creating webhook for project: {repo_key or project_key} code: {e.response.status_code} response: {e.response.text}"
-        )
         return None
 
 
