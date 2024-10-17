@@ -514,7 +514,7 @@ async def get_repositories(project: dict[str, Any], port_webhook_url: str):
                 for repo in repositories_batch
             ]
         )
-        (
+        if IS_VERSION_8_7_OR_OLDER:
             [
                 await get_or_create_bitbucket_webhook(
                     project_key=project["key"],
@@ -524,9 +524,6 @@ async def get_repositories(project: dict[str, Any], port_webhook_url: str):
                 )
                 for repo in repositories_batch
             ]
-            if IS_VERSION_8_7_OR_OLDER
-            else None
-        )
         await get_repository_pull_requests(repository_batch=repositories_batch)
 
 
@@ -565,16 +562,12 @@ async def main():
 
         for project in projects_batch:
             await get_repositories(project=project, port_webhook_url=port_webhook_url)
-            (
+            if not IS_VERSION_8_7_OR_OLDER:
                 await get_or_create_bitbucket_webhook(
                     project_key=project["key"],
                     webhook_url=port_webhook_url,
                     events=WEBHOOK_EVENTS,
                 )
-                if not IS_VERSION_8_7_OR_OLDER
-                else None
-            )
-
     logger.info("Bitbucket data extraction completed")
     await client.aclose()
 
