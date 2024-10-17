@@ -433,7 +433,7 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
             "properties": {
                 "created_on": convert_to_datetime(pr.get("createdDate")),
                 "updated_on": convert_to_datetime(pr.get("updatedDate")),
-                "mergeAt": convert_to_datetime(pr.get("closedDate", 0)),
+                "mergedAt": convert_to_datetime(pr.get("closedDate", 0)),
                 "merge_commit": pr.get("fromRef", {}).get("latestCommit"),
                 "description": pr.get("description"),
                 "state": pr.get("state"),
