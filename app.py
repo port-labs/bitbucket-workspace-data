@@ -528,11 +528,10 @@ async def get_repositories(project: dict[str, Any], port_webhook_url: str):
 
 
 async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
-    pr_params = {"state": "ALL"}  ## Fetch all pull requests
     for repository in repository_batch:
         pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
         async for pull_requests_batch in get_paginated_resource(
-            path=pull_requests_path, params=pr_params
+            path=pull_requests_path
         ):
             logger.info(
                 f"received pull requests batch with size {len(pull_requests_batch)} from repo: {repository['slug']}"
