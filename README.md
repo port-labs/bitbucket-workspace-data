@@ -64,6 +64,6 @@ The list of variables required to run this script are:
 - `BITBUCKET_PROJECTS_FILTER` - An optional comma separated list of BitBucket projects to filter. If not provided, all projects will be fetched.
 - `WEBHOOK_SECRET` - An optional secret to use when creating a webhook in Port. If not provided, `bitbucket_webhook_secret` will be used.
 - `PORT_API_URL` - If not provided, the variable defaults to the EU Port API. For US organizations use `https://api.us.getport.io/v1` instead.
-- `IS_VERSION_8_7_OR_OLDER` - Specifies whether the Bitbucket version is older than 8.7. This setting determines if webhooks should be created at the repository level (for older versions <=8.7) or at the project level (for newer versions >=8.8).
+- `IS_VERSION_8_7_OR_OLDER` - An optional variable that specifies whether the Bitbucket version is older than 8.7. This setting determines if webhooks should be created at the repository level (for older versions <=8.7) or at the project level (for newer versions >=8.8).
 
 Done! any change that happens to your project, repository or pull requests in Bitbucket will trigger a webhook event to the webhook URL provided by Port. Port will parse the events according to the mapping and update the catalog entities accordingly.
