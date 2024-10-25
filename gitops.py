@@ -226,7 +226,7 @@ async def create_or_update_entity_from_yaml(project_key, repo_slug):
                 else:
                     logger.error(f"Invalid entity schema: {entity}")
         else:
-            logger.error(f"Invalid entity port.yaml schema : {entity_data}")
+            logger.error(f"Invalid entity port.yaml schema : {entity_data} with type {type(entity_data)}")
 
 
 class PortEntity(BaseModel):
