@@ -30,14 +30,18 @@ port_headers = {}
 bitbucket_auth = BasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
 client = httpx.AsyncClient(timeout=httpx.Timeout(60))
 
+
 async def get_access_token():
     credentials = {"clientId": PORT_CLIENT_ID, "clientSecret": PORT_CLIENT_SECRET}
-    token_response = await client.post(f"{PORT_API_URL}/auth/access_token", json=credentials)
+    token_response = await client.post(
+        f"{PORT_API_URL}/auth/access_token", json=credentials
+    )
     response_data = token_response.json()
-    access_token = response_data['accessToken']
-    expires_in = response_data['expiresIn']
+    access_token = response_data["accessToken"]
+    expires_in = response_data["expiresIn"]
     token_expiry_time = datetime.now() + timedelta(seconds=expires_in)
     return access_token, token_expiry_time
+
 
 async def refresh_access_token():
     global port_access_token, token_expiry_time, port_headers
@@ -46,14 +50,17 @@ async def refresh_access_token():
     port_headers = {"Authorization": f"Bearer {port_access_token}"}
     logger.info(f"New token received. Expiry time: {token_expiry_time}")
 
+
 async def refresh_token_if_expired():
     if datetime.now() >= token_expiry_time:
         await refresh_access_token()
+
 
 async def refresh_token_and_retry(method: str, url: str, **kwargs):
     await refresh_access_token()
     response = await client.request(method, url, headers=port_headers, **kwargs)
     return response
+
 
 async def send_port_request(method: str, endpoint: str, payload: Optional[dict] = None):
     global port_access_token, token_expiry_time, port_headers
@@ -72,29 +79,35 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as e:
-                logger.error(f"Error after retrying: {e.response.status_code}, {e.response.text}")
+                logger.error(
+                    f"Error after retrying: {e.response.status_code}, {e.response.text}"
+                )
                 return {"status_code": e.response.status_code, "response": e.response}
         else:
-            logger.error(f"HTTP error occurred: {e.response.status_code}, {e.response.text}")
+            logger.error(
+                f"HTTP error occurred: {e.response.status_code}, {e.response.text}"
+            )
             return {"status_code": e.response.status_code, "response": e.response}
     except httpx.HTTPError as e:
         logger.error(f"HTTP error occurred: {e}")
         return {"status_code": None, "error": e}
 
+
 async def add_entity_to_port(blueprint_id, entity_object):
     response = await send_port_request(
         method="POST",
         endpoint=f"blueprints/{blueprint_id}/entities?upsert=true&merge=true",
-        payload=entity_object
+        payload=entity_object,
     )
     if not isinstance(response, dict):
         logger.info(response.json())
 
+
 async def get_paginated_resource(
-        path: str,
-        params: dict[str, Any] = None,
-        page_size: int = 25,
-        full_response: bool = False,
+    path: str,
+    params: dict[str, Any] = None,
+    page_size: int = 25,
+    full_response: bool = False,
 ):
     global request_count, rate_limit_start
 
@@ -123,7 +136,9 @@ async def get_paginated_resource(
             response.raise_for_status()
             page_json = response.json()
             request_count += 1
-            logger.debug(f"Requested data for {path}, with params: {params} and response code: {response.status_code}")
+            logger.debug(
+                f"Requested data for {path}, with params: {params} and response code: {response.status_code}"
+            )
             if full_response:
                 yield page_json
             else:
@@ -146,12 +161,14 @@ async def get_paginated_resource(
             logger.error(f"HTTP occurred while fetching Bitbucket data: {e}")
         logger.info(f"Successfully fetched paginated data for {path}")
 
+
 async def get_single_project(project_key: str):
     response = await client.get(
         f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}", auth=bitbucket_auth
     )
     response.raise_for_status()
     return response.json()
+
 
 def parse_repository_file_response(file_response: dict[str, Any]) -> str:
     lines = file_response.get("lines", [])
@@ -161,34 +178,56 @@ def parse_repository_file_response(file_response: dict[str, Any]) -> str:
         content += line.get("text", "") + "\n"
     return content
 
+
 async def get_repositories(project: dict[str, Any]):
     repositories_path = f"projects/{project['key']}/repos"
     async for repositories_batch in get_paginated_resource(path=repositories_path):
         logger.info(
             f"received repositories batch with size {len(repositories_batch)} from project: {project['key']}"
         )
-        await asyncio.gather(*(create_or_update_entity_from_yaml(project_key=project["key"], repo_slug=repo["slug"]) for repo in repositories_batch))
+        await asyncio.gather(
+            *(
+                create_or_update_entity_from_yaml(
+                    project_key=project["key"], repo_slug=repo["slug"]
+                )
+                for repo in repositories_batch
+            )
+        )
+
 
 async def read_port_yaml_from_bitbucket(project_key, repo_slug):
     url = f"projects/{project_key}/repos/{repo_slug}/browse/port.yaml"
     port_yaml_file = ""
     async for port_file_batch in get_paginated_resource(
-            path=url, page_size=500, full_response=True
+        path=url, page_size=500, full_response=True
     ):
         file_content = parse_repository_file_response(port_file_batch)
         port_yaml_file += file_content
     return yaml.safe_load(port_yaml_file)
 
+
 async def create_or_update_entity_from_yaml(project_key, repo_slug):
     entity_data = await read_port_yaml_from_bitbucket(project_key, repo_slug)
     if entity_data:
         logger.info(f"Creating entity from port.yaml: {entity_data}")
-        for entity in entity_data:
-            validated_entity = validate_port_yaml(entity)
+        if isinstance(entity_data, dict):
+            validated_entity = validate_port_yaml(entity_data)
             if validated_entity:
-                await add_entity_to_port(blueprint_id=entity.get("blueprint"), entity_object=entity)
-            else:
-                logger.error(f"Invalid entity schema: {entity}")
+                await add_entity_to_port(
+                    blueprint_id=entity_data.get("blueprint"), entity_object=entity_data
+                )
+        elif isinstance(entity_data, list):
+            for entity in entity_data:
+                validated_entity = validate_port_yaml(entity)
+                if validated_entity:
+                    await add_entity_to_port(
+                        blueprint_id=entity.get("blueprint"), entity_object=entity
+                    )
+                else:
+                    logger.error(f"Invalid entity schema: {entity}")
+        else:
+            logger.error(f"Invalid entity port.yaml schema : {entity_data} with type {type(entity_data)}")
+
 
 class PortEntity(BaseModel):
     identifier: str
@@ -197,15 +236,20 @@ class PortEntity(BaseModel):
     properties: Dict[str, Any]
     relations: Dict[str, Any]
 
+
 def validate_port_yaml(data: dict):
     try:
-        data['properties'] = data.get('properties') or {}
-        data['relations'] = data.get('relations') or {}
+        data["properties"] = data.get("properties") or {}
+        data["relations"] = data.get("relations") or {}
         validated_entity = PortEntity(**data)
         return validated_entity.model_dump()
     except ValidationError as e:
         logger.error(f"Validation error for entity: {e.json()}")
         return None
+    except Exception as e:
+        logger.error(f"Error validating entity: {e}")
+        return None
+
 
 async def main():
     logger.info("Starting Bitbucket data extraction")
@@ -220,6 +264,7 @@ async def main():
 
     logger.info("Bitbucket gitops completed")
     await client.aclose()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
