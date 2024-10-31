@@ -21,6 +21,7 @@ BITBUCKET_PROJECTS_FILTER = config(
 PORT_API_URL = config("PORT_API_URL", default="https://api.getport.io/v1")
 WEBHOOK_SECRET = config("WEBHOOK_SECRET", default="bitbucket_webhook_secret")
 IS_VERSION_8_7_OR_OLDER = config("IS_VERSION_8_7_OR_OLDER", default=False)
+GET_MERGED_PRS = config("GET_MERGED_PRS", default=False)
 
 # According to https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/
 RATE_LIMIT = 1000  # Maximum number of requests allowed per hour
@@ -459,11 +460,15 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
             "relations": {
                 "repository": pr["toRef"]["repository"]["slug"],
                 "participants": [
-                    pr.get("author", {}).get("user", {}).get("emailAddress")
-                ]
-                + [
-                    user.get("user", {}).get("emailAddress")
-                    for user in pr.get("participants", [])
+                    email
+                    for email in [
+                        pr.get("author", {}).get("user", {}).get("emailAddress")
+                    ]
+                    + [
+                        user.get("user", {}).get("emailAddress", "")
+                        for user in pr.get("participants", [])
+                    ]
+                    if email
                 ],
             },
         }
@@ -531,7 +536,8 @@ async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
     for repository in repository_batch:
         pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
         async for pull_requests_batch in get_paginated_resource(
-            path=pull_requests_path
+            path=pull_requests_path,
+            params={"state": "ALL"} if GET_MERGED_PRS else {},
         ):
             logger.info(
                 f"received pull requests batch with size {len(pull_requests_batch)} from repo: {repository['slug']}"
