@@ -539,7 +539,9 @@ async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
     for repository in repository_batch:
         pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
         if PULL_REQUEST_STATE not in VALID_PULL_REQUEST_STATES:
-            logger.warning(f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'.")
+            logger.warning(
+                f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'."
+            )
             PULL_REQUEST_STATE = "OPEN"
         async for pull_requests_batch in get_paginated_resource(
             path=pull_requests_path,
@@ -561,24 +563,28 @@ async def main():
     if BITBUCKET_PROJECTS_FILTER:
         projects = [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
     else:
-        projects = get_paginated_resource(path=project_path)
+        projects = [
+            project
+            async for projects in get_paginated_resource(path=project_path)
+            for project in projects
+        ]
+        logger.warning(projects)
 
     port_webhook_url = await get_or_create_port_webhook()
     if not port_webhook_url:
         logger.error("Failed to get or create Port webhook. Skipping webhook setup...")
 
-    async for projects_batch in projects:
-        logger.info(f"received projects batch with size {len(projects_batch)}")
-        await process_project_entities(projects_data=projects_batch)
+    logger.info(f"received projects batch with size {len(projects)}")
+    await process_project_entities(projects_data=projects)
 
-        for project in projects_batch:
-            await get_repositories(project=project, port_webhook_url=port_webhook_url)
-            if not IS_VERSION_8_7_OR_OLDER:
-                await get_or_create_bitbucket_webhook(
-                    project_key=project["key"],
-                    webhook_url=port_webhook_url,
-                    events=WEBHOOK_EVENTS,
-                )
+    for project in projects:
+        await get_repositories(project=project, port_webhook_url=port_webhook_url)
+        if not IS_VERSION_8_7_OR_OLDER:
+            await get_or_create_bitbucket_webhook(
+                project_key=project["key"],
+                webhook_url=port_webhook_url,
+                events=WEBHOOK_EVENTS,
+            )
     logger.info("Bitbucket data extraction completed")
     await client.aclose()
 
