@@ -539,7 +539,9 @@ async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
     for repository in repository_batch:
         pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
         if PULL_REQUEST_STATE not in VALID_PULL_REQUEST_STATES:
-            logger.warning(f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'.")
+            logger.warning(
+                f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'."
+            )
             PULL_REQUEST_STATE = "OPEN"
         async for pull_requests_batch in get_paginated_resource(
             path=pull_requests_path,
@@ -559,7 +561,9 @@ async def main():
 
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
-        projects = [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+        async def filtered_projects_generator():
+            yield [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+        projects = filtered_projects_generator()
     else:
         projects = get_paginated_resource(path=project_path)
 
