@@ -561,30 +561,28 @@ async def main():
 
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
-        projects = [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+        async def filtered_projects_generator():
+            yield [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+        projects = filtered_projects_generator()
     else:
-        projects = [
-            project
-            async for projects in get_paginated_resource(path=project_path)
-            for project in projects
-        ]
-        logger.warning(projects)
+        projects = get_paginated_resource(path=project_path)
 
     port_webhook_url = await get_or_create_port_webhook()
     if not port_webhook_url:
         logger.error("Failed to get or create Port webhook. Skipping webhook setup...")
 
-    logger.info(f"received projects batch with size {len(projects)}")
-    await process_project_entities(projects_data=projects)
+    async for projects_batch in projects:
+        logger.info(f"received projects batch with size {len(projects_batch)}")
+        await process_project_entities(projects_data=projects_batch)
 
-    for project in projects:
-        await get_repositories(project=project, port_webhook_url=port_webhook_url)
-        if not IS_VERSION_8_7_OR_OLDER:
-            await get_or_create_bitbucket_webhook(
-                project_key=project["key"],
-                webhook_url=port_webhook_url,
-                events=WEBHOOK_EVENTS,
-            )
+        for project in projects_batch:
+            await get_repositories(project=project, port_webhook_url=port_webhook_url)
+            if not IS_VERSION_8_7_OR_OLDER:
+                await get_or_create_bitbucket_webhook(
+                    project_key=project["key"],
+                    webhook_url=port_webhook_url,
+                    events=WEBHOOK_EVENTS,
+                )
     logger.info("Bitbucket data extraction completed")
     await client.aclose()
 
