@@ -463,12 +463,15 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
             "relations": {
                 "repository": pr["toRef"]["repository"]["slug"],
                 "participants": [
-                    participant_email
-                    for participant in (
-                        [pr.get("author", {}).get("user", {})]
-                        + pr.get("participants", [])
-                    )
-                    if (participant_email := participant.get("emailAddress"))
+                    email
+                    for email in [
+                        pr.get("author", {}).get("user", {}).get("emailAddress")
+                    ]
+                    + [
+                        user.get("user", {}).get("emailAddress", "")
+                        for user in pr.get("participants", [])
+                    ]
+                    if email
                 ],
             },
         }
