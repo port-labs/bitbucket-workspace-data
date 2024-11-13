@@ -454,8 +454,11 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                 "link": pr.get("links", {}).get("self", [{}])[0].get("href"),
                 "destination": pr.get("toRef", {}).get("displayId"),
                 "reviewers": [
-                    user.get("user", {}).get("emailAddress")
-                    for user in pr.get("reviewers", [])
+                    email
+                    for email in [
+                        user.get("user", {}).get("emailAddress")
+                        for user in pr.get("reviewers", [])
+                    ]
                 ],
                 "source": pr.get("fromRef", {}).get("displayId"),
             },
@@ -561,8 +564,10 @@ async def main():
 
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
+
         async def filtered_projects_generator():
             yield [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+
         projects = filtered_projects_generator()
     else:
         projects = get_paginated_resource(path=project_path)
