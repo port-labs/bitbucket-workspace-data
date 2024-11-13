@@ -459,6 +459,7 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                         user.get("user", {}).get("emailAddress")
                         for user in pr.get("reviewers", [])
                     ]
+                    if email
                 ],
                 "source": pr.get("fromRef", {}).get("displayId"),
             },
