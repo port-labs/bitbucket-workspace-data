@@ -454,27 +454,21 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
                 "link": pr.get("links", {}).get("self", [{}])[0].get("href"),
                 "destination": pr.get("toRef", {}).get("displayId"),
                 "reviewers": [
-                    email
-                    for email in [
-                        user.get("user", {}).get("emailAddress")
-                        for user in pr.get("reviewers", [])
-                    ]
-                    if email
+                    reviewer_email
+                    for reviewer in pr.get("reviewers", [])
+                    if (reviewer_email := reviewer.get("user", {}).get("emailAddress"))
                 ],
                 "source": pr.get("fromRef", {}).get("displayId"),
             },
             "relations": {
                 "repository": pr["toRef"]["repository"]["slug"],
                 "participants": [
-                    email
-                    for email in [
-                        pr.get("author", {}).get("user", {}).get("emailAddress")
-                    ]
-                    + [
-                        user.get("user", {}).get("emailAddress", "")
-                        for user in pr.get("participants", [])
-                    ]
-                    if email
+                    participant_email
+                    for participant in (
+                        [pr.get("author", {}).get("user", {})]
+                        + pr.get("participants", [])
+                    )
+                    if (participant_email := participant.get("emailAddress"))
                 ],
             },
         }
