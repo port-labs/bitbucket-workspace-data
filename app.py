@@ -177,7 +177,7 @@ async def create_port_webhook():
 
 def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
     return {
-        "name": "Port Webhook",
+        "name": f"Port Webhook-{webhook_url.split('/')[-1]}",
         "url": webhook_url,
         "events": events,
         "active": True,
@@ -249,7 +249,7 @@ async def get_or_create_bitbucket_webhook(
                     )
                 )
                 for webhook in project_webhooks_batch
-                if webhook["url"] == webhook_url
+                if webhook["name"] == f"Port Webhook-{webhook_url.split('/')[-1]}"
             ]
             if matching_webhooks:
                 logger.info(f"Webhook already exists for {repo_key or project_key}.")
