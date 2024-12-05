@@ -136,8 +136,9 @@ async def get_or_create_port_webhook():
             return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
+        webhook_key = response.json().get("integration", {}).get("webhookKey")
         logger.info(f"Webhook configuration exists in Port. URL: {webhook_url}")
-        return webhook_url
+        return webhook_url, webhook_key
 
 
 async def create_port_webhook():
@@ -169,15 +170,16 @@ async def create_port_webhook():
         return None
     else:
         webhook_url = response.json().get("integration", {}).get("url")
+        webhook_key = response.json().get("integration", {}).get("webhookKey")
         logger.info(
             f"Webhook configuration successfully created in Port: {webhook_url}"
         )
-        return webhook_url
+        return webhook_url, webhook_key
 
 
-def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
+def generate_webhook_data(webhook_url: str, events: list[str], webhook_key: str) -> dict:
     return {
-        "name": "Port Webhook",
+        "name": f"Port Webhook-{webhook_key}",
         "url": webhook_url,
         "events": events,
         "active": True,
@@ -187,10 +189,10 @@ def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
 
 
 async def create_project_level_webhook(
-    project_key: str, webhook_url: str, events: list[str]
+    project_key: str, webhook_url: str, events: list[str], webhook_key: str
 ):
     logger.info(f"Creating project-level webhook for project: {project_key}")
-    webhook_data = generate_webhook_data(webhook_url, events)
+    webhook_data = generate_webhook_data(webhook_url, events, webhook_key)
 
     try:
         response = await client.post(
@@ -209,10 +211,10 @@ async def create_project_level_webhook(
 
 
 async def create_repo_level_webhook(
-    project_key: str, repo_key: str, webhook_url: str, events: list[str]
+    project_key: str, repo_key: str, webhook_url: str, events: list[str], webhook_key: str
 ):
     logger.info(f"Creating repo-level webhook for repo: {repo_key}")
-    webhook_data = generate_webhook_data(webhook_url, events)
+    webhook_data = generate_webhook_data(webhook_url, events, webhook_key)
 
     try:
         response = await client.post(
@@ -234,6 +236,7 @@ async def get_or_create_bitbucket_webhook(
     project_key: str,
     webhook_url: str,
     events: list[str],
+    webhook_key: str,
     repo_key: Optional[str] = None,
 ):
     logger.info(f"Checking webhooks for {repo_key or project_key}")
@@ -249,7 +252,7 @@ async def get_or_create_bitbucket_webhook(
                     )
                 )
                 for webhook in project_webhooks_batch
-                if webhook["url"] == webhook_url
+                if webhook["name"] == f"Port Webhook-{webhook_key}"
             ]
             if matching_webhooks:
                 logger.info(f"Webhook already exists for {repo_key or project_key}.")
@@ -259,11 +262,11 @@ async def get_or_create_bitbucket_webhook(
             )
             if repo_key:
                 return await create_repo_level_webhook(
-                    project_key, repo_key, webhook_url, events
+                    project_key, repo_key, webhook_url, events, webhook_key
                 )
             else:
                 return await create_project_level_webhook(
-                    project_key, webhook_url, events
+                    project_key, webhook_url, events, webhook_key
                 )
         except httpx.HTTPStatusError as e:
             logger.error(
@@ -505,7 +508,7 @@ async def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
     return {}
 
 
-async def get_repositories(project: dict[str, Any], port_webhook_url: str):
+async def get_repositories(project: dict[str, Any], port_webhook_url: str, port_webhook_key: str):
     repositories_path = f"projects/{project['key']}/repos"
     async for repositories_batch in get_paginated_resource(path=repositories_path):
         logger.info(
@@ -528,6 +531,7 @@ async def get_repositories(project: dict[str, Any], port_webhook_url: str):
                     project_key=project["key"],
                     repo_key=repo["slug"],
                     webhook_url=port_webhook_url,
+                    webhook_key=port_webhook_key,
                     events=WEBHOOK_EVENTS,
                 )
                 for repo in repositories_batch
@@ -570,7 +574,7 @@ async def main():
     else:
         projects = get_paginated_resource(path=project_path)
 
-    port_webhook_url = await get_or_create_port_webhook()
+    port_webhook_url, port_webhook_key = await get_or_create_port_webhook()
     if not port_webhook_url:
         logger.error("Failed to get or create Port webhook. Skipping webhook setup...")
 
@@ -579,12 +583,13 @@ async def main():
         await process_project_entities(projects_data=projects_batch)
 
         for project in projects_batch:
-            await get_repositories(project=project, port_webhook_url=port_webhook_url)
+            await get_repositories(project=project, port_webhook_url=port_webhook_url, port_webhook_key=port_webhook_key)
             if not IS_VERSION_8_7_OR_OLDER:
                 await get_or_create_bitbucket_webhook(
                     project_key=project["key"],
                     webhook_url=port_webhook_url,
                     events=WEBHOOK_EVENTS,
+                    webhook_key=port_webhook_key,
                 )
     logger.info("Bitbucket data extraction completed")
     await client.aclose()
