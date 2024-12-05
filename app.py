@@ -238,7 +238,6 @@ async def get_or_create_bitbucket_webhook(
 ):
     logger.info(f"Checking webhooks for {repo_key or project_key}")
     if webhook_url is not None:
-        webhook_key = webhook_url.split('/')[-1]
         try:
             matching_webhooks = [
                 webhook
@@ -250,7 +249,7 @@ async def get_or_create_bitbucket_webhook(
                     )
                 )
                 for webhook in project_webhooks_batch
-                if webhook["name"] == f"Port Webhook-{webhook_key}"
+                if webhook["name"] == f"Port Webhook-{webhook_url.split('/')[-1]}"
             ]
             if matching_webhooks:
                 logger.info(f"Webhook already exists for {repo_key or project_key}.")
