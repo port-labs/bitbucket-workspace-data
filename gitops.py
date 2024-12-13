@@ -207,26 +207,30 @@ async def read_port_yaml_from_bitbucket(project_key, repo_slug):
 
 
 async def create_or_update_entity_from_yaml(project_key, repo_slug):
-    entity_data = await read_port_yaml_from_bitbucket(project_key, repo_slug)
-    if entity_data:
-        logger.info(f"Creating entity from port.yaml: {entity_data}")
-        if isinstance(entity_data, dict):
-            validated_entity = validate_port_yaml(entity_data)
-            if validated_entity:
-                await add_entity_to_port(
-                    blueprint_id=entity_data.get("blueprint"), entity_object=entity_data
-                )
-        elif isinstance(entity_data, list):
-            for entity in entity_data:
-                validated_entity = validate_port_yaml(entity)
+    try:
+        entity_data = await read_port_yaml_from_bitbucket(project_key, repo_slug)
+        if entity_data:
+            logger.info(f"Creating entity from port.yaml: {entity_data}")
+            if isinstance(entity_data, dict):
+                validated_entity = validate_port_yaml(entity_data)
                 if validated_entity:
                     await add_entity_to_port(
-                        blueprint_id=entity.get("blueprint"), entity_object=entity
+                        blueprint_id=entity_data.get("blueprint"), entity_object=entity_data
                     )
-                else:
-                    logger.error(f"Invalid entity schema: {entity}")
-        else:
-            logger.error(f"Invalid entity port.yaml schema : {entity_data} with type {type(entity_data)}")
+            elif isinstance(entity_data, list):
+                for entity in entity_data:
+                    validated_entity = validate_port_yaml(entity)
+                    if validated_entity:
+                        await add_entity_to_port(
+                            blueprint_id=entity.get("blueprint"), entity_object=entity
+                        )
+                    else:
+                        logger.error(f"Invalid entity schema: {entity}")
+            else:
+                logger.error(f"Invalid entity port.yaml schema : {entity_data} with type {type(entity_data)}")
+    except Exception as e:
+        logger.error(f"Error reading port.yaml file: {str(e)}")
+        return
 
 
 class PortEntity(BaseModel):
@@ -254,7 +258,11 @@ def validate_port_yaml(data: dict):
 async def main():
     logger.info("Starting Bitbucket data extraction")
     if BITBUCKET_PROJECTS_FILTER:
-        projects = [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+
+        async def filtered_projects_generator():
+            yield [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
+
+        projects = filtered_projects_generator()
     else:
         projects = get_paginated_resource(path="projects")
     async for projects_batch in projects:
