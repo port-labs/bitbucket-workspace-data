@@ -9,6 +9,11 @@ from typing import Any, Dict, List
 import httpx
 from loguru import logger
 import pytest
+import sys
+import os
+
+# Add the parent directory to the Python path so we can import app.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Simulated data sizes
 NUM_USERS = 12000
@@ -27,7 +32,7 @@ class MockBitbucketAPI:
         
     async def _simulate_request(self):
         """Simulate minimal network delay"""
-        await asyncio.sleep(5)  # Each API call takes 1 second
+        await asyncio.sleep(1)  # Each API call takes 1 second
         
     def _generate_user(self, user_id: int) -> Dict[str, Any]:
         return {
