@@ -3,11 +3,11 @@ import re
 import time
 from datetime import datetime, timedelta
 import asyncio
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List, AsyncGenerator, Union, Tuple, TypeVar, cast
 import httpx
-from decouple import config
+from decouple import config     # type: ignore
 from loguru import logger
-from httpx import BasicAuth
+from httpx import BasicAuth, Response
 
 # These are the credentials passed by the variables of your pipeline to your tasks and into your env
 PORT_CLIENT_ID = config("PORT_CLIENT_ID")
@@ -55,8 +55,9 @@ port_headers = {}
 bitbucket_auth = BasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
 client = httpx.AsyncClient(timeout=httpx.Timeout(60))
 
+T = TypeVar('T')
 
-async def get_access_token():
+async def get_access_token() -> Tuple[str, datetime]:
     credentials = {"clientId": PORT_CLIENT_ID, "clientSecret": PORT_CLIENT_SECRET}
     token_response = await client.post(
         f"{PORT_API_URL}/auth/access_token", json=credentials
@@ -68,7 +69,7 @@ async def get_access_token():
     return access_token, token_expiry_time
 
 
-async def refresh_access_token():
+async def refresh_access_token() -> None:
     global port_access_token, token_expiry_time, port_headers
     logger.info("Refreshing access token...")
     port_access_token, token_expiry_time = await get_access_token()
@@ -76,12 +77,12 @@ async def refresh_access_token():
     logger.info(f"New token received. Expiry time: {token_expiry_time}")
 
 
-async def refresh_token_if_expired():
+async def refresh_token_if_expired() -> None:
     if datetime.now() >= token_expiry_time:
         await refresh_access_token()
 
 
-async def refresh_token_and_retry(method: str, url: str, **kwargs):
+async def refresh_token_and_retry(method: str, url: str, **kwargs) -> Response:
     await refresh_access_token()
     response = await client.request(method, url, headers=port_headers, **kwargs)
     return response
@@ -93,7 +94,7 @@ def sanitize_identifier(identifier: str) -> str:
     return re.sub(pattern, "_", identifier)
 
 
-async def send_port_request(method: str, endpoint: str, payload: Optional[dict] = None):
+async def send_port_request(method: str, endpoint: str, payload: Optional[Dict[str, Any]] = None) -> Union[Response, Dict[str, Any]]:
     global port_access_token, token_expiry_time, port_headers
     await refresh_token_if_expired()
     url = f"{PORT_API_URL}/{endpoint}"
@@ -109,21 +110,23 @@ async def send_port_request(method: str, endpoint: str, payload: Optional[dict] 
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as e:
+                error_response = e.response
                 logger.error(
-                    f"Error after retrying: {e.response.status_code}, {e.response.text}"
+                    f"Error after retrying: {error_response.status_code}, {error_response.text}"
                 )
-                return {"status_code": e.response.status_code, "response": e.response}
+                return {"status_code": error_response.status_code, "response": error_response}
         else:
+            error_response = e.response  # type: ignore
             logger.error(
-                f"HTTP error occurred: {e.response.status_code}, {e.response.text}"
+                f"HTTP error occurred: {error_response.status_code}, {error_response.text}"
             )
-            return {"status_code": e.response.status_code, "response": e.response}
+            return {"status_code": error_response.status_code, "response": error_response}
     except httpx.HTTPError as e:
         logger.error(f"HTTP error occurred: {e}")
         return {"status_code": None, "error": e}
 
 
-async def get_or_create_port_webhook():
+async def get_or_create_port_webhook() -> Optional[str]:
     logger.info("Checking if a Bitbucket webhook is configured on Port...")
     response = await send_port_request(
         method="GET", endpoint=f"webhooks/{WEBHOOK_IDENTIFIER}"
@@ -140,7 +143,7 @@ async def get_or_create_port_webhook():
         return webhook_url
 
 
-async def create_port_webhook():
+async def create_port_webhook() -> Optional[str]:
     logger.info("Creating a webhook for Bitbucket on Port...")
     with open("./resources/webhook_configuration.json", "r") as file:
         mappings = json.load(file)
@@ -175,7 +178,7 @@ async def create_port_webhook():
         return webhook_url
 
 
-def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
+def generate_webhook_data(webhook_url: str, events: List[str]) -> Dict[str, Any]:
     return {
         "name": f"Port Webhook-{webhook_url.split('/')[-1]}",
         "url": webhook_url,
@@ -187,8 +190,8 @@ def generate_webhook_data(webhook_url: str, events: list[str]) -> dict:
 
 
 async def create_project_level_webhook(
-    project_key: str, webhook_url: str, events: list[str]
-):
+    project_key: str, webhook_url: str, events: List[str]
+) -> Optional[Dict[str, Any]]:
     logger.info(f"Creating project-level webhook for project: {project_key}")
     webhook_data = generate_webhook_data(webhook_url, events)
 
@@ -209,8 +212,8 @@ async def create_project_level_webhook(
 
 
 async def create_repo_level_webhook(
-    project_key: str, repo_key: str, webhook_url: str, events: list[str]
-):
+    project_key: str, repo_key: str, webhook_url: str, events: List[str]
+) -> Optional[Dict[str, Any]]:
     logger.info(f"Creating repo-level webhook for repo: {repo_key}")
     webhook_data = generate_webhook_data(webhook_url, events)
 
@@ -233,30 +236,36 @@ async def create_repo_level_webhook(
 async def get_or_create_bitbucket_webhook(
     project_key: str,
     webhook_url: str,
-    events: list[str],
+    events: List[str],
     repo_key: Optional[str] = None,
-):
+) -> Optional[Dict[str, Any]]:
     logger.info(f"Checking webhooks for {repo_key or project_key}")
     if webhook_url is not None:
         try:
-            matching_webhooks = [
-                webhook
-                async for project_webhooks_batch in get_paginated_resource(
-                    path=(
-                        f"projects/{project_key}/repos/{repo_key}/webhooks"
-                        if repo_key
-                        else f"projects/{project_key}/webhooks"
-                    )
-                )
-                for webhook in project_webhooks_batch
-                if webhook["name"] == f"Port Webhook-{webhook_url.split('/')[-1]}"
-            ]
+            webhook_path = (
+                f"projects/{project_key}/repos/{repo_key}/webhooks"
+                if repo_key
+                else f"projects/{project_key}/webhooks"
+            )
+            
+            webhook_identifier = f"Port Webhook-{webhook_url.split('/')[-1]}"
+            
+            webhook_generator = get_paginated_resource(path=webhook_path)
+            
+            matching_webhooks: List[Dict[str, Any]] = []
+            async for webhook_batch in webhook_generator:
+                for webhook in cast(List[Dict[str, Any]], webhook_batch):
+                    if webhook.get("name") == webhook_identifier:
+                        matching_webhooks.append(webhook)
+            
             if matching_webhooks:
                 logger.info(f"Webhook already exists for {repo_key or project_key}.")
                 return matching_webhooks[0]
+                
             logger.info(
                 f"Webhook not found for {repo_key or project_key}. Creating a new one."
             )
+            
             if repo_key:
                 return await create_repo_level_webhook(
                     project_key, repo_key, webhook_url, events
@@ -275,7 +284,7 @@ async def get_or_create_bitbucket_webhook(
         return None
 
 
-async def add_entity_to_port(blueprint_id, entity_object):
+async def add_entity_to_port(blueprint_id: str, entity_object: Dict[str, Any]) -> None:
     response = await send_port_request(
         method="POST",
         endpoint=f"blueprints/{blueprint_id}/entities?upsert=true&merge=true",
@@ -287,20 +296,18 @@ async def add_entity_to_port(blueprint_id, entity_object):
 
 async def get_paginated_resource(
     path: str,
-    params: dict[str, Any] = None,
+    params: Optional[Dict[str, Any]] = None,
     page_size: int = 25,
     full_response: bool = False,
-):
+) -> AsyncGenerator[Union[Dict[str, Any], List[Dict[str, Any]]], None]:
     global request_count, rate_limit_start
 
-    # Check if we've exceeded the rate limit, and if so, wait until the reset period is over
     if request_count >= RATE_LIMIT:
         elapsed_time = time.time() - rate_limit_start
         if elapsed_time < RATE_PERIOD:
             sleep_time = RATE_PERIOD - elapsed_time
             await asyncio.sleep(sleep_time)
 
-        # Reset the rate limiting variables
         request_count = 0
         rate_limit_start = time.time()
 
@@ -322,10 +329,10 @@ async def get_paginated_resource(
                 f"Requested data for {path}, with params: {params} and response code: {response.status_code}"
             )
             if full_response:
-                yield page_json
+                yield cast(Dict[str, Any], page_json)
             else:
-                batch_data = page_json["values"]
-                yield batch_data
+                batch_data = page_json.get("values", [])
+                yield cast(List[Dict[str, Any]], batch_data)
 
             next_page_start = page_json.get("nextPageStart")
             if not next_page_start:
@@ -344,7 +351,7 @@ async def get_paginated_resource(
         logger.info(f"Successfully fetched paginated data for {path}")
 
 
-async def get_single_project(project_key: str):
+async def get_single_project(project_key: str) -> Dict[str, Any]:
     response = await client.get(
         f"{BITBUCKET_API_URL}/rest/api/1.0/projects/{project_key}", auth=bitbucket_auth
     )
@@ -352,12 +359,14 @@ async def get_single_project(project_key: str):
     return response.json()
 
 
-def convert_to_datetime(timestamp: int):
+def convert_to_datetime(timestamp: Optional[int]) -> str:
+    if timestamp is None:
+        return ""
     converted_datetime = datetime.utcfromtimestamp(timestamp / 1000.0)
     return converted_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_repository_file_response(file_response: dict[str, Any]) -> str:
+def parse_repository_file_response(file_response: Dict[str, Any]) -> str:
     lines = file_response.get("lines", [])
     logger.info(f"Received readme file with {len(lines)} entries")
     readme_content = ""
@@ -368,9 +377,36 @@ def parse_repository_file_response(file_response: dict[str, Any]) -> str:
     return readme_content
 
 
-async def process_user_entities(users_data: list[dict[str, Any]]):
-    blueprint_id = "bitbucketUser"
+async def stream_async_generators(
+    generators: List[AsyncGenerator[Any, None]], 
+    batch_size: int = 50
+) -> AsyncGenerator[List[Any], None]:
+    """Utility function to process multiple async generators concurrently"""
+    results = []
+    while True:
+        tasks = []
+        for gen in generators:
+            try:
+                tasks.append(anext(gen))
+            except StopAsyncIteration:
+                continue
+        
+        if not tasks:
+            break
+            
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        results.extend([r for r in batch_results if not isinstance(r, Exception)])
+        
+        if len(tasks) < batch_size:
+            break
+            
+    yield results
 
+
+async def process_user_entities(users_data: List[Dict[str, Any]]) -> None:
+    blueprint_id = "bitbucketUser"
+    tasks = []
+    
     for user in users_data:
         entity = {
             "title": user.get("displayName"),
@@ -383,12 +419,15 @@ async def process_user_entities(users_data: list[dict[str, Any]]):
         identifier = str(user.get("emailAddress"))
         if identifier:
             entity["identifier"] = sanitize_identifier(identifier)
-        await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+        tasks.append(add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity))
+    
+    await asyncio.gather(*tasks)
 
 
-async def process_project_entities(projects_data: list[dict[str, Any]]):
+async def process_project_entities(projects_data: List[Dict[str, Any]]) -> None:
     blueprint_id = "bitbucketProject"
-
+    tasks = []
+    
     for project in projects_data:
         entity = {
             "title": project.get("name"),
@@ -403,12 +442,15 @@ async def process_project_entities(projects_data: list[dict[str, Any]]):
         identifier = str(project.get("key"))
         if identifier:
             entity["identifier"] = sanitize_identifier(identifier)
-        await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+        tasks.append(add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity))
+    
+    await asyncio.gather(*tasks)
 
 
-async def process_repository_entities(repository_data: list[dict[str, Any]]):
+async def process_repository_entities(repository_data: List[Dict[str, Any]]) -> None:
     blueprint_id = "bitbucketRepository"
-
+    tasks = []
+    
     for repo in repository_data:
         readme_content = await get_repository_readme(
             project_key=repo["project"]["key"], repo_slug=repo["slug"]
@@ -434,12 +476,15 @@ async def process_repository_entities(repository_data: list[dict[str, Any]]):
         identifier = str(repo.get("slug"))
         if identifier:
             entity["identifier"] = sanitize_identifier(identifier)
-        await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+        tasks.append(add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity))
+    
+    await asyncio.gather(*tasks)
 
 
-async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
+async def process_pullrequest_entities(pullrequest_data: List[Dict[str, Any]]) -> None:
     blueprint_id = "bitbucketPullrequest"
-
+    tasks = []
+    
     for pr in pullrequest_data:
         entity = {
             "title": pr.get("title"),
@@ -478,7 +523,9 @@ async def process_pullrequest_entities(pullrequest_data: list[dict[str, Any]]):
         identifier = str(pr.get("id"))
         if identifier:
             entity["identifier"] = sanitize_identifier(identifier)
-        await add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity)
+        tasks.append(add_entity_to_port(blueprint_id=blueprint_id, entity_object=entity))
+    
+    await asyncio.gather(*tasks)
 
 
 async def get_repository_readme(project_key: str, repo_slug: str) -> str:
@@ -487,17 +534,17 @@ async def get_repository_readme(project_key: str, repo_slug: str) -> str:
     async for readme_file_batch in get_paginated_resource(
         path=file_path, page_size=500, full_response=True
     ):
-        file_content = parse_repository_file_response(readme_file_batch)
+        file_content = parse_repository_file_response(cast(Dict[str, Any], readme_file_batch))
         readme_content += file_content
     return readme_content
 
 
-async def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
+async def get_latest_commit(project_key: str, repo_slug: str) -> Dict[str, Any]:
     try:
         commit_path = f"projects/{project_key}/repos/{repo_slug}/commits"
         async for commit_batch in get_paginated_resource(path=commit_path):
             if commit_batch:
-                latest_commit = commit_batch[0]
+                latest_commit = cast(List[Dict[str, Any]], commit_batch)[0]
                 return latest_commit
             return {}
     except Exception as e:
@@ -505,87 +552,117 @@ async def get_latest_commit(project_key: str, repo_slug: str) -> dict[str, Any]:
     return {}
 
 
-async def get_repositories(project: dict[str, Any], port_webhook_url: str):
+async def get_repositories(project: Dict[str, Any], port_webhook_url: Optional[str]) -> None:
+    if not port_webhook_url:
+        logger.error("Port webhook URL is not available. Skipping webhook setup...")
+        return
+
     repositories_path = f"projects/{project['key']}/repos"
-    async for repositories_batch in get_paginated_resource(path=repositories_path):
+    repositories_generator = get_paginated_resource(path=repositories_path)
+    
+    async for repositories_batch in repositories_generator:
         logger.info(
             f"received repositories batch with size {len(repositories_batch)} from project: {project['key']}"
         )
+        
+        repos_with_commits = await asyncio.gather(*[
+            get_latest_commit(project_key=project["key"], repo_slug=repo["slug"])
+            for repo in cast(List[Dict[str, Any]], repositories_batch)
+        ])
+        
         await process_repository_entities(
             repository_data=[
-                {
-                    **repo,
-                    "__latestCommit": await get_latest_commit(
-                        project_key=project["key"], repo_slug=repo["slug"]
-                    ),
-                }
-                for repo in repositories_batch
+                {**repo, "__latestCommit": commit}
+                for repo, commit in zip(cast(List[Dict[str, Any]], repositories_batch), repos_with_commits)
             ]
         )
+        
         if IS_VERSION_8_7_OR_OLDER:
-            [
-                await get_or_create_bitbucket_webhook(
+            webhook_tasks = [
+                get_or_create_bitbucket_webhook(
                     project_key=project["key"],
                     repo_key=repo["slug"],
                     webhook_url=port_webhook_url,
                     events=WEBHOOK_EVENTS,
                 )
-                for repo in repositories_batch
+                for repo in cast(List[Dict[str, Any]], repositories_batch)
             ]
-        await get_repository_pull_requests(repository_batch=repositories_batch)
+            await asyncio.gather(*webhook_tasks)
+        
+        await get_repository_pull_requests(repository_batch=cast(List[Dict[str, Any]], repositories_batch))
 
 
-async def get_repository_pull_requests(repository_batch: list[dict[str, Any]]):
+async def get_repository_pull_requests(repository_batch: List[Dict[str, Any]]) -> None:
     global PULL_REQUEST_STATE
-    for repository in repository_batch:
-        pull_requests_path = f"projects/{repository['project']['key']}/repos/{repository['slug']}/pull-requests"
-        if PULL_REQUEST_STATE not in VALID_PULL_REQUEST_STATES:
-            logger.warning(
-                f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'."
-            )
-            PULL_REQUEST_STATE = "OPEN"
-        async for pull_requests_batch in get_paginated_resource(
-            path=pull_requests_path,
+    if PULL_REQUEST_STATE not in VALID_PULL_REQUEST_STATES:
+        logger.warning(
+            f"Invalid PULL_REQUEST_STATE '{PULL_REQUEST_STATE}' provided. Defaulting to 'OPEN'."
+        )
+        PULL_REQUEST_STATE = "OPEN"
+    
+    # Process PRs for all repositories concurrently
+    pr_generators = [
+        get_paginated_resource(
+            path=f"projects/{repo['project']['key']}/repos/{repo['slug']}/pull-requests",
             params={"state": PULL_REQUEST_STATE},
-        ):
-            logger.info(
-                f"received pull requests batch with size {len(pull_requests_batch)} from repo: {repository['slug']}"
-            )
-            await process_pullrequest_entities(pullrequest_data=pull_requests_batch)
+        )
+        for repo in repository_batch
+    ]
+    
+    async for pull_requests_batch in stream_async_generators(pr_generators):
+        logger.info(
+            f"received pull requests batch with size {len(pull_requests_batch)}"
+        )
+        await process_pullrequest_entities(pullrequest_data=pull_requests_batch)
 
 
-async def main():
+async def main() -> None:
     logger.info("Starting Bitbucket data extraction")
-    async for users_batch in get_paginated_resource(path="admin/users"):
+    
+    # Process users concurrently
+    users_generator = get_paginated_resource(path="admin/users")
+    async for users_batch in users_generator:
         logger.info(f"received users batch with size {len(users_batch)}")
-        await process_user_entities(users_data=users_batch)
+        await process_user_entities(users_data=cast(List[Dict[str, Any]], users_batch))
 
+    # Process projects concurrently
     project_path = "projects"
     if BITBUCKET_PROJECTS_FILTER:
-
-        async def filtered_projects_generator():
-            yield [await get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER]
-
-        projects = filtered_projects_generator()
+        projects = await asyncio.gather(*[
+            get_single_project(key) for key in BITBUCKET_PROJECTS_FILTER
+        ])
     else:
-        projects = get_paginated_resource(path=project_path)
+        projects_generator = get_paginated_resource(path=project_path)
+        projects: List[Dict[str, Any]] = []  # type: ignore
+        async for batch in projects_generator:
+            projects.extend(cast(List[Dict[str, Any]], batch))
 
     port_webhook_url = await get_or_create_port_webhook()
     if not port_webhook_url:
         logger.error("Failed to get or create Port webhook. Skipping webhook setup...")
 
-    async for projects_batch in projects:
-        logger.info(f"received projects batch with size {len(projects_batch)}")
-        await process_project_entities(projects_data=projects_batch)
+    # Process projects concurrently
+    await process_project_entities(projects_data=projects)
 
-        for project in projects_batch:
-            await get_repositories(project=project, port_webhook_url=port_webhook_url)
-            if not IS_VERSION_8_7_OR_OLDER:
-                await get_or_create_bitbucket_webhook(
-                    project_key=project["key"],
-                    webhook_url=port_webhook_url,
-                    events=WEBHOOK_EVENTS,
-                )
+    # Process repositories for all projects concurrently
+    repo_tasks = [
+        get_repositories(project=project, port_webhook_url=port_webhook_url)
+        for project in projects
+    ]
+    await asyncio.gather(*repo_tasks)
+
+    # Set up webhooks for all projects concurrently if needed
+    if not IS_VERSION_8_7_OR_OLDER and port_webhook_url:
+        webhook_tasks = [
+            get_or_create_bitbucket_webhook(
+                project_key=project["key"],
+                webhook_url=port_webhook_url,
+                events=WEBHOOK_EVENTS,
+            )
+            for project in projects
+        ]
+        await asyncio.gather(*webhook_tasks)
+
     logger.info("Bitbucket data extraction completed")
     await client.aclose()
 
