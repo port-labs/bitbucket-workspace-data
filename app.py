@@ -55,8 +55,6 @@ port_headers = {}
 bitbucket_auth = BasicAuth(username=BITBUCKET_USERNAME, password=BITBUCKET_PASSWORD)
 client = httpx.AsyncClient(timeout=httpx.Timeout(60))
 
-T = TypeVar('T')
-
 async def get_access_token() -> Tuple[str, datetime]:
     credentials = {"clientId": PORT_CLIENT_ID, "clientSecret": PORT_CLIENT_SECRET}
     token_response = await client.post(
